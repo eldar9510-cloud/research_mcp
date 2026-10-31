@@ -230,13 +230,14 @@ test('important body context above 24 KiB remains model-visible and fully readab
   assert.equal(assembled, text);
 });
 
-// Required full-access regression, not a TODO/skip. The current candidate fails
-// closed rather than discarding the warning, but READ-01 remains unsatisfied.
+// Required original 83,059-byte regression. Both original body and every exact
+// correction-context byte must remain reachable under the approved chunk contract.
 test('complete model-visible access survives a correction larger than the response guard', { timeout: 30000 }, async t => {
   const r = await roots(t);
   const call = await connect(t, r, 8192);
   const text = '# Findings\nDated evidence.\n\n## Corrections\nKnown error: replaced by successor.\n' +
     Array.from({ length: 800 }, (_, i) => `- Correction ${i}: the earlier claim ${i} is invalid; preserve this distinct correction and its evidence.\n`).join('');
+  assert.equal(Buffer.byteLength(text), 83059, 'preserve the original failing fixture');
   assert.ok(Buffer.byteLength(text) < 2 * 1024 * 1024, 'valid report size');
   const imported = await call('save_research_draft', { text, metadata: { ...metadata(), superseded_by: 'successor' } });
   // Import may have persisted before its oversized preview failed. Test the
@@ -246,13 +247,127 @@ test('complete model-visible access survives a correction larger than the respon
   const stored = JSON.parse(await fs.readFile(join(r.workRoot, 'proposals', records[0]), 'utf8'));
   assert.equal(await fs.readFile(join(r.workRoot, 'proposals', `${stored.proposalId}.body`), 'utf8'), text);
   const read = await call('read_research', { proposalId: stored.proposalId, expectedRevision: stored.revision });
+  assert.equal(imported.ok, true, 'the stored proposal also has a bounded successful preview');
   assert.equal(read.ok, true, `READ-01 requires complete bounded access; preview=${imported.ok}, read=${JSON.stringify(read.error)}`);
   let page = read;
   let assembled = '';
-  while (true) {
-    assembled += page.content.text;
+  const chunks = new Map();
+  for (let count = 0; ; count++) {
+    assert.ok(count < 100, 'finite explicit warning and body continuations');
+    assert.equal(page.revision, stored.revision);
+    assert.deepEqual(page.metadata, stored.metadata);
+    assert.deepEqual(page.warnings, stored.warnings);
+    assert.equal(page.metadata.superseded_by, 'successor');
+    assert.match(page.warningContext.signal, /CORRECTION/);
+    assert.equal(page.warningContext.contextOutstanding, true, 'no stateless claim that required context was read');
+    if (page.pageType === 'warning_context') {
+      assert.equal(page.content.text, '', 'context is explicit, not apparently qualified evidence');
+      assert.ok(page.warningContext.chunkNumber <= page.warningContext.totalChunks);
+      for (const notice of page.notices) chunks.set(notice.startByte, notice);
+    } else assembled += page.content.text;
     if (!page.continuation) break;
     page = await call('read_research', page.continuation);
   }
   assert.equal(assembled, text);
+  const notices = [...chunks.values()].sort((a, b) => a.startByte - b.startByte);
+  for (let i = 1; i < notices.length; i++) assert.equal(notices[i].startByte, notices[i - 1].endByte);
+  assert.equal(notices.map(n => n.text).join(''), text.slice(text.indexOf('## Corrections')));
+  assert.equal(Buffer.byteLength(notices.map(n => n.text).join('')), read.warningContext.totalBytes);
+});
+
+test('one oversized Unicode/escaped correction reconstructs exact context, its citation windows and complete body', { timeout: 30000 }, async t => {
+  const r = await roots(t);
+  const call = await connect(t, r, 8192);
+  const labels = Array.from({ length: 18 }, (_, i) => `ref${i}`);
+  const correction = '## Correction\r\nUse [successor][next] instead. ' + labels.map(label => `[claim][${label}]`).join(' ') + '\r\n' +
+    ('é😀\\\"\x01 distinct original context\r\n').repeat(1900);
+  assert.ok(Buffer.byteLength(correction) > 48 * 1024, 'one notice alone exceeds the entire visible guard');
+  const text = '# Findings\r\nDated evidence.\r\n\r\n' + correction + '## Sources\r\n' +
+    labels.map(label => `[${label}]: https://example.org/${label}`).join('\r\n') + '\r\n[next]: https://example.org/successor\r\n';
+  const p = (await call('save_research_draft', { text, metadata: { ...metadata(), warnings: ['é'.repeat(300)], superseded_by: null } })).proposal;
+  assert.equal(p.pageType, 'warning_context');
+  let page = p;
+  let body = '';
+  let lastStart = -1;
+  const chunks = new Map();
+  const citations = new Map();
+  let citationPages = 0;
+  for (let count = 0; ; count++) {
+    assert.ok(count < 150);
+    assert.equal(page.revision, p.revision);
+    assert.deepEqual(page.metadata.warnings, ['é'.repeat(300)]);
+    assert.match(page.warningContext.signal, /CORRECTION/);
+    assert.match(page.warningContext.successorContext[0].text, /Use \[successor\]\[next\] instead/);
+    assert.equal(page.warningContext.contextOutstanding, true);
+    for (const notice of page.notices) chunks.set(notice.startByte, notice);
+    for (const c of page.citations) citations.set(c.label, c);
+    if (page.pageType === 'body' && page.content.startByte !== lastStart) {
+      body += page.content.text;
+      lastStart = page.content.startByte;
+    }
+    if (!page.continuation) break;
+    const previous = page;
+    page = await call('read_research', previous.continuation);
+    if (previous.continuation.referenceOffset !== undefined) {
+      citationPages++;
+      assert.deepEqual(page.content, previous.content);
+      assert.deepEqual(page.notices, previous.notices);
+      assert.equal(page.warningContext.chunkNumber, previous.warningContext.chunkNumber);
+    }
+  }
+  assert.ok(citationPages > 0);
+  assert.equal(body, text);
+  const notices = [...chunks.values()].sort((a, b) => a.startByte - b.startByte);
+  assert.equal(notices.map(n => n.text).join(''), correction);
+  for (let i = 1; i < notices.length; i++) assert.equal(notices[i].startByte, notices[i - 1].endByte);
+  for (const label of labels) assert.equal(citations.get(label).target, `https://example.org/${label}`);
+  assert.equal(citations.get('next').target, 'https://example.org/successor');
+  const review = (await call('review_research_draft', { proposalId: p.proposalId })).review;
+  await call('accept_research_draft', { proposalId: review.proposalId, expectedRevision: review.expectedRevision,
+    expectedBaseRevision: null, expectedCatalogueRevision: review.expectedCatalogueRevision,
+    expectedReviewDigest: review.reviewDigest, acceptedAt: review.acceptedAt });
+  const found = (await call('search_research', { query: 'orchard' })).candidates[0];
+  assert.equal(found.warnings.find(w => w.code === 'report_warning').message, 'é'.repeat(300));
+  assert.ok(found.warnings.some(w => w.code === 'body_notice'));
+  const required = await call('read_research', found.warningContext.read);
+  assert.equal(required.pageType, 'warning_context');
+  assert.equal(required.revision, found.revision);
+});
+
+test('metadata pressure switches otherwise-inline accepted notices to exact required chunks without dropping warnings', { timeout: 30000 }, async t => {
+  const r = await roots(t);
+  const call = await connect(t, r, 8192);
+  const notice = '## Correction\nKnown error: replaced by successor.\n' + 'x'.repeat(31900) + '\n';
+  const m = { ...metadata(), warnings: Array(16).fill('w'.repeat(190)), superseded_by: 'successor',
+    related_reports: Array.from({ length: 32 }, (_, i) => ({ id: `r${i}x`.padEnd(100, 'x'), relationship: 'reuses' })) };
+  const p = (await call('save_research_draft', { text: '# Findings\nDated evidence.\n\n' + notice, metadata: m })).proposal;
+  assert.equal(p.warningContext.mode, 'inline', 'ordinary proposal context can still repeat verbatim');
+  const review = (await call('review_research_draft', { proposalId: p.proposalId })).review;
+  const accepted = await call('accept_research_draft', { proposalId: review.proposalId, expectedRevision: review.expectedRevision,
+    expectedBaseRevision: null, expectedCatalogueRevision: review.expectedCatalogueRevision,
+    expectedReviewDigest: review.reviewDigest, acceptedAt: review.acceptedAt });
+  let page = await call('read_research', { reportId: accepted.reportId, expectedRevision: accepted.revision });
+  assert.equal(page.warningContext.mode, 'paged', 'all accepted metadata/diagnostic warnings force explicit context pagination');
+  const chunks = new Map();
+  for (let count = 0; ; count++) {
+    assert.ok(count < 40);
+    assert.equal(page.warnings.length, 52);
+    assert.deepEqual(page.metadata.warnings, m.warnings);
+    for (const chunk of page.notices) chunks.set(chunk.startByte, chunk.text);
+    if (!page.continuation) break;
+    page = await call('read_research', page.continuation);
+  }
+  assert.equal([...chunks].sort((a, b) => a[0] - b[0]).map(([, text]) => text).join(''), notice);
+});
+
+test('fenced Warning examples cannot turn a 61 KiB ordinary report into oversized essential context', { timeout: 30000 }, async t => {
+  const r = await roots(t);
+  const call = await connect(t, r, 8192);
+  const text = '# Analysis\n```markdown\n## Warning\nExample only.\n```\n' + 'Ordinary analysis and observations.\n'.repeat(1800);
+  assert.ok(Buffer.byteLength(text) > 61 * 1024);
+  const p = (await call('save_research_draft', { text, metadata: metadata() })).proposal;
+  assert.equal(p.ok, true);
+  assert.deepEqual(p.notices, []);
+  assert.equal(p.warningContext, null);
+  assert.equal(p.pageType, 'body');
 });

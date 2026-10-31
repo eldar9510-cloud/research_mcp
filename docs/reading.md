@@ -1,16 +1,17 @@
-# Selected, revision-bound reading (issue #4 candidate)
+# Selected, revision-bound reading
 
-**Candidate status: incomplete.** Ordinary selected reads, citation continuations and later corrections are implemented and tested. A report with more essential notice text than the 48 KiB visible-response guard still cannot be read through MCP. The required full-access regression remains failing; do not treat this candidate as accepted issue #4 work. See the limitation below.
+Issue #4 repair implements the owner's approved interpretation of [PRD READ-02/03](PRD.md#9-reading-reports-and-preserving-evidence): oversized correction text may use explicit required same-revision chunks, never silent omission or invented summaries. This contract does not certify evidence, source freshness, or that a person read anything. Candidate acceptance remains subject to independent review.
 
 ## Selection and complete access
 
 `read_research` accepts exactly one of `proposalId` or `reportId`, plus:
 
-- `expectedRevision`: SHA-256 returned by import/search/read. Required for a selection or any nonzero body/citation offset.
-- `selection: {startByte, endByte}`: optional half-open **original-body UTF-8 byte range** `[start,end)`. Both endpoints must be code-point boundaries. Accepted-report front matter is not part of these offsets. Ranges are stable only at their specified revision; the server never relocates them into changed content.
-- `offset`: optional original-body byte offset within the selection; defaults to its start (otherwise zero).
-- `pageBytes`: optional 128 through the configured `RESEARCH_READ_BYTES` maximum (default 2048, maximum 8192).
-- `referenceOffset`: citation-context continuation, supplied by the server.
+- `expectedRevision`: SHA-256 returned by import/search/read. Required for a selection or any explicit warning cursor/nonzero body/citation offset.
+- `selection: {startByte, endByte}`: optional half-open **original-body UTF-8 byte range** `[start,end)`. Both endpoints must be code-point boundaries. Accepted-report front matter is not part of these offsets. Ranges are stable only at their specified revision; changed content is never silently relocated.
+- `offset`: original-body byte offset within the selection; defaults to its start (otherwise zero).
+- `pageBytes`: 128 through the configured `RESEARCH_READ_BYTES` maximum (default 2048, maximum 8192).
+- `referenceOffset`: citation continuation, supplied by the server.
+- `warningOffset`: numbered warning-context cursor, supplied by the server. It is not an approval/read receipt.
 
 Example, using identity/revision obtained from model-visible tool text:
 
@@ -22,50 +23,60 @@ Example, using identity/revision obtained from model-visible tool text:
 }
 ```
 
-Pass the **entire returned `continuation` unchanged** to the next read until it is `null`. It retains identity, revision, selection, body window size and any citation offset. Do not manufacture an offset from the length of the returned JSON or number of JavaScript characters.
+Pass the **entire returned `continuation` unchanged** until it is `null`. It retains identity, revision, selection, body window size and warning/citation cursor. Do not manufacture byte offsets from JSON length or JavaScript character counts.
 
-Omit `selection` to access the complete original body. Concatenate distinct `content` byte windows; citation-only pages repeat a window and must not be appended twice. `content.truncated` / `nextOffset` describe **remaining body bytes in this selection**, not omitted warning/citation context or the remainder of an unselected report. `citationsTruncated` independently describes citation pagination. `continuation:null` means both this selection's body and its citation context are finished. A zero-length selection or offset at end-of-document returns empty body content, with normal revision/metadata/notices; citation context may still need continuation.
+Omit `selection` to obtain the complete original body. Concatenate distinct `content` byte windows: warning pages have empty body content; citation-only pages repeat their current body window and must not be appended twice. `content.truncated` / `nextOffset` describe remaining body bytes **in this selection**, independently of warning/citation pagination. `citationsTruncated` describes citation pagination. `continuation:null` means this selection's body and the current continuation sequence's warning/citation pages are finished, **not** that anyone read them or that the evidence is verified. An empty selection or end-of-document offset returns empty body, but may still require warning/citation continuations.
 
-Invalid, reversed, out-of-body or interior-code-point ranges are `invalid_input`. A stale expected revision is `revision_conflict`, not a successful page at the new revision. Accepted-report conflicts disclose requested/current digests, including changes since catalogue search, before a stale catalogue can obscure that change. Restart discovery/read against the new revision; previously returned continuations cannot be reused. Removed requested reports/proposals also conflict. No historical revision store or automatic Git checkout is added.
+Invalid, reversed, out-of-body or interior-code-point ranges are `invalid_input`. A stale revision is `revision_conflict`, not a successful page at the new revision. Accepted conflicts disclose requested/current digests before catalogue staleness can obscure the change. Removed requested reports/proposals also conflict. Restart discovery/read against the new revision; never combine old continuations with new evidence. There is no historical revision database or automatic Git checkout.
 
-## Evidence on every page
+## Warnings and exact context
 
-Each page repeats identity, exact content revision, source digest, complete metadata (scope, original/improvement/import/archive dates, relationships and successor), all stored diagnostic warnings and selected location. Accepted reads retain all supplied metadata warnings as well. The existing 24 KiB record/header limit, 40 diagnostic-warning limit and exact Unicode/body storage are unchanged. Search summaries are discovery aids, not report evidence or freshness certification.
+Every page retains identity, exact revision/source digest, complete metadata (scope, original/improvement/import/archive dates, relationships and successor), all stored diagnostic warnings, all metadata warning strings, and selected location. The 24 KiB record/header cap and 40 stored diagnostic cap are unchanged. Metadata warning validation uses the same supported string schema in the catalogue as at import; valid Unicode is not cut to 512 UTF-8 bytes. Stored metadata/body bytes and digests are never normalized or rewritten by reading/search.
 
-`notices` contains exact body text plus original `startByte`/`endByte` for detected important notices outside or inside the selected range. Detection conservatively recognizes English warning/caveat/limitation/correction/supersession/errata/known-error language in paragraphs and ATX headings; a matching heading retains its section through the next equal/higher heading. This is a heuristic, not a multilingual prose audit. Supply important known warnings and `superseded_by` in reviewed metadata rather than assuming arbitrary imported prose will be understood. A successor named in original prose is preserved verbatim, not promoted to a fabricated verified archive relationship.
+For ordinary cases, `pageType:"body"` and `warningContext.mode:"inline"`: `notices` repeats the complete exact detected body notices, with original `startByte`/`endByte`, even outside the selection. No notices means `warningContext:null`; supplied metadata warnings and `superseded_by` still remain visible.
 
-Notice text is report content, **not metadata**: a notice above 24 KiB can still be returned when the actual model-visible response fits. The server never discards a correction, scope, date, warning or citation to make its body excerpt fit.
+When notice context is large, or the complete escaped inline result cannot fit:
+
+1. `pageType:"warning_context"`, `warningContext.mode:"paged"`: explicit warning pages precede body pages. Each contains an exact original-text chunk, at most 1024 source UTF-8 bytes, never split inside a code point. `warningContext.chunkNumber` / `totalChunks` number the complete sequence. Each `notices` entry additionally identifies its original `noticeNumber`, per-notice `chunkNumber` / `chunkCount`, and original byte location. Concatenating distinct chunks in location order reconstructs **all exact notice bytes**, including Unicode, line endings and citations.
+2. Citation windows for a chunk complete before the next warning chunk. The selected body stays empty and its cursor does not advance during warning pages.
+3. The subsequent body pages retain a prominent `CORRECTION / SUPERSESSION / WARNING CONTEXT` signal, metadata successor, exact bounded successor-bearing source lines and resolvable references, and `warningContext.read` pointing back to the complete required context at this revision. Body text is **not fully qualified on its own**. Read **all** warning chunks and their citation context before relying on it.
+
+`warningContext.remainingChunks` is the number after the current warning chunk in this sequence; an isolated body page instead reports the full count required separately. `contextOutstanding` remains true on paged results, even after the final continuation: this stateless interface cannot attest that a caller/person read previous pages. Inline citation pagination also marks context outstanding. The warning cursor equals the total chunk count on body pages; changing it is not proof of review or permission. `warningContext.read` starts a fresh complete context sequence (and then full-body access); callers interested only in warnings may stop when the first body page arrives.
+
+`successorContext` preserves at most four exact source-line prefixes (512 UTF-8 bytes each) plus a same-revision `read` selection for **each complete line**. Counts and explicit truncation flags disclose remaining successor context; the complete warning sequence contains all lines. These are original prose, not inferred/verified archive relationships. An ID supplied as `metadata.superseded_by` remains intact on every page. No successor, historical date or factual summary is invented.
+
+### Detection limits
+
+Relevant top-level Markdown ATX and Setext notice sections are recognized through the next equal/higher heading. Fenced backtick/tilde code and indented code are not headings or citation definitions. Explicit English notice-label paragraphs and report replacement language are recognized; merely mentioning a keyword in arbitrary analysis is not a semantic warning audit. Inline code is excluded from citation recognition. This is a deliberately limited structural recognizer, not a complete CommonMark renderer, multilingual classifier or guarantee to understand arbitrary imported prose. Put known essential caveats and successor IDs in reviewed metadata rather than relying on heuristic detection.
 
 ## Citation context
 
-Cross-page references are found against the **same full report revision**, including tokens that intersect either edge of the selected byte range and references in repeated notices. The original citation spelling/style remains untouched in body text.
+References intersecting either edge of a body window or current exact warning chunk resolve against the **same full report revision**. Original body/citation spelling stays untouched.
 
-- Markdown full, collapsed and shortcut references, numbered references and footnotes are recognized; labels are case/whitespace normalized for lookup only.
-- Definitions indented at most three spaces resolve. Indented continuation lines in multiline definitions/footnotes are retained.
-- A short definition returns `status:"defined"`, its target and one-based original-body line; multiline definitions also include their original definition text.
-- A longer definition returns `status:"read_at_line"`, location and a complete `read` argument object with identity, **the same revision**, and a byte selection. Use `read_research` with that object, then its continuations, to obtain the complete original definition.
-- Missing/blank/ambiguous definitions remain `status:"unresolved"`; duplicates include `reason:"ambiguous_definitions"`. Exported platform citation/file-citation markers without portable definitions remain visibly unresolved. No URL or source content is invented. Unsupported imported syntax remains preserved in the original bytes; this is not a complete Markdown/platform parser.
+- Full, collapsed and shortcut Markdown references, numbered references, footnotes and exported platform markers are recognized. Labels normalize case/whitespace for lookup only. Punctuation after `[claim][label]:` or `[claim][label](archived)` does not erase a reference.
+- Definitions indented at most three spaces resolve; code-fence/indented-code examples cannot supply evidence definitions. Indented continuation lines in multiline definitions/footnotes are retained verbatim.
+- Short definitions return `status:"defined"`, target and one-based body line; multiline definitions also include their original definition text.
+- Long definitions return `status:"read_at_line"`, location and a complete same-revision `read` selection. Follow its continuations to obtain the complete original definition and required warning context.
+- Missing/blank/ambiguous definitions remain `status:"unresolved"`; duplicates include `reason:"ambiguous_definitions"`. Nonportable platform markers stay visibly unresolved. Nothing is repaired by invention.
 
-Up to twelve citation entries appear per page. Citation continuations keep the same body start **and end**, selection and revision before advancing body content. The MCP server tests later citation pages before exposing the first window, so output-size shrink cannot change that window halfway through its references.
+Up to twelve citation entries appear per page. Citation continuations keep the same warning chunk or body start **and end**, selection and revision. The MCP server sizes every citation page in a window before exposing it, so later size shrink cannot move evidence halfway through its references.
 
-## Model-visible bound and unresolved acceptance conflict
+## Catalogue discovery and visible bound
 
-Success JSON appears in MCP `content` and `structuredContent`; Pi's installed proxy prefers visible `content`. The server counts the complete UTF-8 visible text, including explanation, JSON escaping, metadata, warnings, notices and citations, against **48 KiB**, below the adapter's default 50 KiB guard. It shrinks only the body window, down to 128 bytes. Model-visible metadata/evidence context is not silently sliced. The isolated no-model Pi-host probe checks this through the actual installed adapter, not hidden structured output.
+Catalogue summaries are discovery aids, never evidence/freshness certification. Search inspects only its bounded returned shortlist for body notices, adds a bounded `body_notice` warning, exact bounded successor context and `warningContext.read`. It never puts whole bodies into the catalogue or rewrites accepted files/indexes during search. This works even with empty metadata warnings and no metadata successor.
 
-**Unresolved:** a valid report can contain a correction section larger than 48 KiB. Repeating that entire section on every page cannot fit the fixed visible guard, even with an empty/small body. Current behavior is an explicit `limit_reached` with identity/revision, not silent omission; the proposal may already have been stored before its preview failed. Its source/proposal files remain intact locally, but this does **not** satisfy READ-01 complete MCP access. No notices were summarized, omitted or treated as optional to manufacture success. The required regression `complete model-visible access survives a correction larger than the response guard` in `tests/acceptance-mcp.test.js` remains red.
-
-A parent/user decision is needed to reconcile READ-01 complete access, READ-03 full important-warning text on every page and the finite visible guard for oversized warning context—for example, explicitly approved mandatory warning-context pagination before evidence reuse. Such a contract change has **not** been silently introduced here.
+Success JSON appears in MCP `content` and `structuredContent`; Pi's installed proxy prefers visible `content`. Complete visible UTF-8 text, including explanation, JSON escaping, metadata, warnings and citations, stays within **48 KiB**, below the adapter's default 50 KiB guard. The server first shrinks the optional body window, then switches oversized inline notice context to required chunks. Automatic chunking also applies above 32 KiB serialized notice context. It never slices metadata warnings or fabricates a correction summary. Irreducible metadata/output-size failures remain explicit `limit_reached`, with identity/revision; proposals may already have persisted before a failed preview.
 
 ## Checks
 
 ```sh
 npm run check
-npm test          # candidate has the explicit full-access failure above
-npm run test:mcp  # includes the same failing MCP regression
+npm test
+npm run test:mcp
 PI_SDK_ROOT=/absolute/installed/@earendil-works/pi-coding-agent \
 PI_ADAPTER_INDEX=/absolute/installed/pi-mcp-adapter/index.ts \
 PI_OFFLINE=1 PI_TELEMETRY=0 node tests/pi-host-probe.mjs
 git diff --check
 ```
 
-Tests use temporary roots, synthetic reports and local transports. The host probe reuses the existing SDK/proxy interface, sends no model prompt and performs no live research/network/Git publication. Its existing approval checks simulate TUI choices; they do not claim a real human click. See [import.md](import.md) and [acceptance.md](acceptance.md) for setup and existing archive limitations.
+Regressions retain the original 83,059-byte correction fixture and reconstruct its full body **and** exact warning context. Additional cases cover one oversized notice, Unicode/escaping, code/Setext structure, punctuated/missing citations, catalogue discovery/Unicode warnings and mutations across warning/body/citation/definition reads. The actual installed adapter probe uses model-visible text only, with no model prompt, source verification or publication. Existing approval checks simulate TUI choices, not a real human click. See [import.md](import.md) and [acceptance.md](acceptance.md) for setup and archive limitations.

@@ -273,8 +273,31 @@ try {
     assert.equal(widePage.content.text, 'Dated finding.');
     assert.equal(widePage.notices[0].text, wideNotice);
     const wideNoticeVisibleBytes = Buffer.byteLength(wideRaw.content.filter(x => x.type === 'text').map(x => x.text).join('\n'));
+    const oversizedNotice = 'Correction\r\n==========\r\nUse [successor][next] instead.\r\n' + 'Original correction é😀\\\"\x01\r\n'.repeat(2400) + '\r\n';
+    assert.ok(Buffer.byteLength(oversizedNotice) > 48 * 1024);
+    const oversizedText = '# Evidence\r\nDated finding.\r\n\r\n' + oversizedNotice + 'Sources\r\n=======\r\n[next]: https://example.org/successor\r\n';
+    let oversizedPage = visiblePayload(await proxy.execute('pi-probe-oversized-import', { tool: 'research_pages_save_research_draft',
+      args: { text: oversizedText, metadata: { ...meta, id: 'oversized-host-notice', warnings: ['é'.repeat(300)] } } })).proposal;
+    const contextChunks = new Map();
+    let oversizedBody = '';
+    let oversizedPages = 0;
+    while (true) {
+      assert.ok(++oversizedPages < 100);
+      assert.match(oversizedPage.warningContext.signal, /CORRECTION/);
+      assert.equal(oversizedPage.warningContext.contextOutstanding, true);
+      assert.deepEqual(oversizedPage.metadata.warnings, ['é'.repeat(300)]);
+      for (const notice of oversizedPage.notices) contextChunks.set(notice.startByte, notice.text);
+      oversizedBody += oversizedPage.content.text;
+      if (!oversizedPage.continuation) break;
+      const oversizedRaw = await read(oversizedPage.continuation);
+      maxVisibleBytes = Math.max(maxVisibleBytes, Buffer.byteLength(oversizedRaw.content.filter(x => x.type === 'text').map(x => x.text).join('\n')));
+      oversizedPage = visiblePayload(oversizedRaw);
+    }
+    assert.equal(oversizedBody, oversizedText);
+    assert.equal([...contextChunks].sort((a, b) => a[0] - b[0]).map(([, text]) => text).join(''), oversizedNotice);
     assert.equal(session.messages.length, 0);
     console.log(JSON.stringify({ selectedPiHostRead: true, selection, revision: p.revision, pageCount, maxVisibleBytes, wideNoticeVisibleBytes,
+      oversizedPages, oversizedContextBytes: Buffer.byteLength(oversizedNotice), exactContextAndBodyReconstructed: true,
       laterCorrectionAndSuccessorOnEveryPage: true, unresolvedImportedMarker: true, staleContinuationRejected: true, noModelPrompt: true }));
   } finally { if (selectionSession) await close(selectionSession); }
   // The installed adapter brokers every accept dispatch (proxy/direct/script). A

@@ -524,9 +524,11 @@ Every result includes:
 
 **READ-02:** A warning at the top of a report must not disappear when reading a lower section. A superseded or corrected report must not be returned as an apparently current, unqualified result.
 
+Owner-approved bounded-reading clarification: long correction/warning text may use explicit numbered chunks tied to the exact same report revision. Every page must prominently signal corrections/supersession, the successor when known, and the required correction/warning context still to read. Evidence must not be presented as fully qualified while required warning context is outstanding. This is not permission to invent summaries, omit original context, or claim that a human read a page.
+
 **READ-03:** If the report changed between search and read, disclose the revision change. Bind pagination/continuation to one content revision; if that revision is no longer available, return a revision conflict instead of silently concatenating pages from different versions. If the report changed between preparing and accepting a revision, reject the stale-base update until it has been reviewed again.
 
-Important warnings must be shown on every page, even when their original location lies elsewhere in the report. A citation definition outside the selected page must be included or explicitly resolvable through a revision-bound reference. Prioritize essential warnings over optional excerpt length. Never silently drop a correction notice merely to fit a response budget.
+Important warnings must be shown on every page, even when their original location lies elsewhere in the report. Under the READ-02 clarification, bounded pages may carry the prominent warning signal and explicit required same-revision warning-context continuations rather than repeating oversized text verbatim. The full body and all exact warning-context bytes must remain reachable through finite explicit continuations; nothing may be silently omitted or summarized away. A citation definition outside the selected page must be included or explicitly resolvable through a revision-bound reference, including citations in warning-context chunks. Prioritize essential warnings over optional excerpt length. Never silently drop a correction notice merely to fit a response budget.
 
 **READ-04:** Catalogue summaries are discovery aids. When a consequential answer relies on report evidence, read the relevant report content rather than citing only its catalogue summary.
 

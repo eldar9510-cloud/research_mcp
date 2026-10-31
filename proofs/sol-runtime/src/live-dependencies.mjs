@@ -1,12 +1,12 @@
 import { ModelRuntime } from '@earendil-works/pi-coding-agent';
-import { createDuckDuckGoRfcAdapter } from './duckduckgo-rfc.mjs';
+import { createBraveRfcAdapter } from './brave-rfc.mjs';
 
-// Not invoked by offline tests. Call only under a separate, scoped user approval.
-// Pi resolves Codex authentication itself through its supported ModelRuntime; we never read/print it.
-// DuckDuckGo Lite search is keyless; existing Codex auth remains separately permitted.
-export async function makeLiveDependencies({ signal }) {
+// Call only under a separate, scoped user approval. Offline tests cover missing-key refusal only.
+// Pi resolves Codex authentication itself; no credential file is read by this module.
+// Validate the host-supplied Brave key BEFORE runtime/auth initialization or model dispatch.
+export async function makeLiveDependencies({ signal, braveSearchApiKey }) {
   signal?.throwIfAborted();
-  const adapter = createDuckDuckGoRfcAdapter();
+  const adapter = createBraveRfcAdapter({ token: braveSearchApiKey });
   const modelRuntime = await ModelRuntime.create({ allowModelNetwork: false, signal });
   signal?.throwIfAborted();
   return { adapter, modelRuntime };

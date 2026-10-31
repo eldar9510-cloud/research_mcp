@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { types } from 'node:util';
 import { LIMITS, MODEL, runInvestigation, sourceUrl } from '../src/research.mjs';
 import { createDuckDuckGoRfcAdapter } from '../src/duckduckgo-rfc.mjs';
+import { createBraveRfcAdapter } from '../src/brave-rfc.mjs';
 import { ModelRuntime } from '@earendil-works/pi-coding-agent';
 
 // A network attempt from any fixture is an immediate test failure, not a paid model/web call.
@@ -767,6 +768,62 @@ test('tool and wall timers remain serviceable after adversarial concrete parsing
     assert.equal(httpCalls, 1); assert.equal(trace.length, 1); assert.equal(result.toolCalls, 1);
     assert.equal(result.sources.length, 0);
   }
+});
+
+test('Brave + actual SDK loop inspects a later RFC passage, preserving pin/tools/counts/evidence', async () => {
+  const calls = [];
+  const a = createBraveRfcAdapter({ token: 'offline-fixture-token', fetchImpl: async (url, init) => {
+    calls.push({ url, init });
+    return url.startsWith('https://api.search.brave.com/res/v1/web/search?')
+      ? new Response(JSON.stringify({ web: { results: [{ url: URL, title: 'Synthetic lead', description: 'uninspected-api-marker' }] } }),
+        { headers: { 'content-type': 'application/json' } })
+      : new Response('preamble '.repeat(900) + 'example.com, example.org and example.net are reserved for examples.',
+        { headers: { 'content-type': 'text/plain' } });
+  } });
+  const { runtime, trace } = fixture([searchStep, { tool: 'research_fetch', args: { url: URL, contains: 'example.com' } },
+    { text: 'example.com, example.org and example.net are reserved for examples [S1].' }]);
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: a });
+  assert.equal(result.status, 'completed'); assert.equal(result.modelCalls, 3); assert.equal(result.toolCalls, 2);
+  assert.equal(result.sources[0].offset > 2400, true); assert.match(result.sources[0].excerpt, /example\.com/);
+  assert.match(result.sources[0].visibleTextSha256, /^[a-f0-9]{64}$/);
+  assert(trace.every((t) => t.model === 'gpt-6.1-sol' && t.reasoning === 'max' &&
+    t.tools.join(',') === 'research_search,research_fetch' && t.maxRetries === 0));
+  assert.equal(calls.length, 2); assert.deepEqual(calls[1].init.headers, { Accept: 'text/html, text/plain' });
+  assert.doesNotMatch(JSON.stringify(result), /offline-fixture-token|uninspected-api-marker|Synthetic lead/);
+});
+
+test('Brave malformed/error/empty responses preserve SDK diagnostics and cannot count as inspected evidence', async () => {
+  for (const [body, status, reason, code, modelCalls] of [
+    ['{"secret-api-marker":', 200, 'tool_failure', 'search_response_invalid', 1],
+    ['secret-api-marker', 429, 'tool_failure', 'remote_fetch_failed', 1],
+    [JSON.stringify({ web: { results: [] } }), 200, 'missing_successful_search', undefined, 2],
+  ]) {
+    let calls = 0;
+    const a = createBraveRfcAdapter({ token: 'offline-fixture-token', fetchImpl: async () => { calls++;
+      return new Response(body, { status, headers: { 'content-type': 'application/json' } });
+    } });
+    const result = await runInvestigation(INPUT, { modelRuntime: fixture([searchStep, { text: 'No evidence.' }]).runtime, adapter: a });
+    assert.equal(result.reason, reason); assert.equal(result.status, code ? 'failed' : 'incomplete');
+    assert.equal(result.modelCalls, modelCalls); assert.equal(result.toolCalls, 1); assert.equal(calls, 1);
+    assert.deepEqual(result.sources, []);
+    if (code) assert.deepEqual(result.firstToolFailure, { tool: 'research_search', stage: 'adapter', code });
+    else assert.equal(Object.hasOwn(result, 'firstToolFailure'), false);
+    assert.doesNotMatch(JSON.stringify(result), /secret-api-marker|offline-fixture-token/);
+  }
+});
+
+test('Brave uncooperative response read remains bounded by existing SDK tool deadline with no retry/source call', async () => {
+  let calls = 0;
+  let searchSignal;
+  const a = createBraveRfcAdapter({ token: 'offline-fixture-token', fetchImpl: async (_url, { signal }) => {
+    calls++; searchSignal = signal;
+    return new Response(new ReadableStream({ start() {} }), { headers: { 'content-type': 'application/json' } });
+  } });
+  const result = await runInvestigation(INPUT, { modelRuntime: fixture([searchStep]).runtime, adapter: a,
+    limits: { wallMs: 1000, toolTimeoutMs: 15 } });
+  assert.equal(result.status, 'incomplete'); assert.equal(result.reason, 'tool_timeout');
+  assert.equal(searchSignal.aborted, true); assert.equal(calls, 1);
+  assert.equal(result.modelCalls, 1); assert.equal(result.toolCalls, 1); assert.deepEqual(result.sources, []);
 });
 
 test('live entrypoint refuses to run without explicit operator acknowledgement', () => {

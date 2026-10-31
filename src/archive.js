@@ -86,15 +86,22 @@ function safeMetadata(input) {
   if (!parsed.success || Buffer.byteLength(JSON.stringify(parsed.data), 'utf8') > 8192) fail('invalid_input', 'Invalid or oversized report metadata (see documented field contract)');
   return parsed.data;
 }
+function referenceTokens(text) {
+  return [
+    ...text.matchAll(/\[[^\]\n]{1,80}\]\[([^\]\n]{1,80})\]/g),
+    ...text.matchAll(/\[\^([^\]\n]{1,80})\](?!:)/g),
+    ...text.matchAll(/\[(\d{1,6})\](?![:(])/g),
+  ];
+}
 function warningsFor(meta, text) {
   const warnings = [];
   const add = (code, message) => warnings.push({ code, message });
   if (meta.researched_at === null) add('unknown_research_date', 'Original research date unknown; import is not verification.');
   if (meta.origin.platform === 'unknown' || meta.origin.author === 'unknown') add('unknown_origin', 'Original platform or author unknown; review attribution.');
-  if (/\b(?:file:\/\/|\.\.?\/|\/(?:home|tmp|Users)\/|[A-Za-z]:\\)/i.test(text)) add('local_dependency', 'Local file reference may not be portable; review before publication.');
+  if (/\b(?:file:\/\/|[A-Za-z]:\\)|(?<![\w./:])(?:\.\.?\/|\/(?:home|tmp|Users)\/)/i.test(text)) add('local_dependency', 'Local file reference may not be portable; review before publication.');
   if (/\b(?:transcript|chat log|conversation-only|private conversation)\b/i.test(text)) add('transcript_dependency', 'Possible transcript-only evidence; review before publication.');
   const definitions = new Set([...text.matchAll(/^\[([^\]\n]{1,80})\]:[ \t]*\S+/gm)].map(m => m[1].toLowerCase()));
-  const references = [...text.matchAll(/\[[^\]\n]{1,80}\]\[([^\]\n]{1,80})\]/g), ...text.matchAll(/\[\^([^\]\n]{1,80})\](?!:)/g), ...text.matchAll(/\[(\d{1,6})\](?![:(])/g)];
+  const references = referenceTokens(text);
   if (references.some(m => !definitions.has(m[1].toLowerCase()) && !definitions.has(`^${m[1].toLowerCase()}`))) add('unresolved_citation', 'Unresolved Markdown reference or footnote; no target was invented.');
   if (/\b(?:ignore (?:previous|all) instructions|reveal (?:secrets|credentials)|publish (?:this|unrelated)|send (?:secrets|credentials))\b/i.test(text)) add('untrusted_instructions', 'Report may contain instructions; treat as untrusted source text, never authorization.');
   for (const r of meta.related_reports) add('unverified_relationship', `Relationship to ${r.id} is unverified until reviewed.`);
@@ -152,8 +159,8 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     let body;
     try { body = await readRegular(p.body, MAX_SOURCE_BYTES); } catch (e) { if (e.code === 'not_found') fail('archive_unavailable', 'Proposal body is missing'); throw e; }
     if (sha(body) !== saved.sourceDigest || revision(saved.metadata, saved.sourceDigest) !== saved.revision) fail('revision_conflict', 'Stored proposal revision changed');
-    utf8(body);
-    return { saved, body };
+    const text = utf8(body);
+    return { saved, body, text };
   }
   function safeStoredMetadata(m) {
     if (!m || !safeMetadataShape(m) || typeof m.created_at !== 'string' || typeof m.updated_at !== 'string' || typeof m.imported_at !== 'string') return false;
@@ -240,7 +247,7 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(referenceOffset) || referenceOffset < 0 ||
         (expectedRevision !== undefined && (typeof expectedRevision !== 'string' || !digestPattern.test(expectedRevision)))) fail('invalid_input', 'Invalid read offset or revision');
     if ((offset !== 0 || referenceOffset !== 0) && !expectedRevision) fail('invalid_input', 'Continuation requires expectedRevision');
-    const { saved, body } = await load(proposalId);
+    const { saved, body, text } = await load(proposalId);
     if (expectedRevision && expectedRevision !== saved.revision) fail('revision_conflict', 'Proposal revision differs from requested revision');
     if (offset > body.length) fail('invalid_input', 'Read offset exceeds proposal length');
     let end = Math.min(body.length, offset + maxReadBytes);
@@ -250,16 +257,12 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     let excerpt;
     try { excerpt = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(body.subarray(offset, end)); }
     catch { fail('invalid_input', 'Read offset must start on a UTF-8 boundary'); }
-    const text = utf8(body);
     // Find full reference tokens intersecting this page, including tokens split across pages.
     const startChar = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(body.subarray(0, offset)).length;
     const endChar = startChar + excerpt.length;
-    const refs = [...new Set([
-      ...text.matchAll(/\[[^\]\n]{1,80}\]\[([^\]\n]{1,80})\]/g),
-      ...text.matchAll(/\[\^([^\]\n]{1,80})\](?!:)/g),
-      ...text.matchAll(/\[(\d{1,6})\](?![:(])/g),
-    ].filter(m => m.index < endChar && m.index + m[0].length > startChar).map(m => m[1].toLowerCase()))];
-    const definitions = [...text.matchAll(/^\[([^\]\n]{1,80})\]:[ \t]*(.+)$/gm)];
+    const refs = [...new Set(referenceTokens(text)
+      .filter(m => m.index < endChar && m.index + m[0].length > startChar).map(m => m[1].toLowerCase()))];
+    const definitions = [...text.matchAll(/^\[([^\]\n]{1,80})\]:[ \t]*(\S.*)$/gm)];
     const citations = refs.map(label => {
       const match = definitions.find(d => d[1].toLowerCase() === label || d[1].toLowerCase() === `^${label}`);
       if (!match) return { label, status: 'unresolved' };

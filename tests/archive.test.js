@@ -174,6 +174,44 @@ test('citation pagination keeps the excerpt and definition targets bound to one 
   assert.equal(second.citations[0].target, 'https://example.org/ref12');
 });
 
+test('local-reference warning recognizes explicit relative/absolute paths, not portable URLs or lookalikes', async t => {
+  const r = await roots(t);
+  const a = createArchive(r);
+  for (const [i, body] of [
+    './notes/soil.txt', 'See (./notes/soil.txt).', 'See ../notes/soil.txt',
+    'See /home/sample/soil.txt', 'See file:///tmp/soil.txt', 'See C:\\notes\\soil.txt',
+  ].entries()) {
+    const p = (await a.importReport({ text: body, metadata: metadata(`local-${i}`) })).proposal;
+    assert.ok(p.warnings.some(w => w.code === 'local_dependency'), body);
+  }
+  for (const [i, body] of [
+    'https://example.org/notes/soil.txt', 'https://example.org/home/sample/soil.txt',
+    'Use prefix./notes/soil.txt as a label, not a path', 'See a.b/notes/soil.txt',
+  ].entries()) {
+    const p = (await a.importReport({ text: body, metadata: metadata(`portable-${i}`) })).proposal;
+    assert.ok(!p.warnings.some(w => w.code === 'local_dependency'), body);
+  }
+});
+
+test('blank citation definitions remain unresolved through citation and body pagination', async t => {
+  const r = await roots(t);
+  const labels = Array.from({ length: 18 }, (_, i) => `ref${String(i).padStart(2, '0')}`);
+  const body = `See ${labels.map(x => `[a][${x}]`).join(' ')}.\n${'e'.repeat(300)}\n${labels.map((x, i) => `[${x}]: ${i === 17 ? 'https://example.org/valid' : '   '}`).join('\n')}\n`;
+  const a = createArchive({ ...r, maxReadBytes: 256 });
+  const first = (await a.importReport({ text: body, metadata: metadata() })).proposal;
+  assert.ok(first.warnings.some(w => w.code === 'unresolved_citation'));
+  assert.equal(first.citationsTruncated, true);
+  assert.deepEqual(first.citations.map(c => c.status), Array(12).fill('unresolved'));
+  const second = await a.readProposal(first.continuation);
+  assert.equal(second.content.text, first.content.text);
+  assert.deepEqual(second.citations.map(c => c.status), [...Array(5).fill('unresolved'), 'defined']);
+  assert.equal(second.citations.at(-1).target, 'https://example.org/valid');
+  assert.equal(second.continuation.offset, first.content.nextOffset);
+  const nextBodyPage = await a.readProposal(second.continuation);
+  assert.equal(nextBodyPage.content.startByte, first.content.endByte);
+  assert.ok(nextBodyPage.warnings.some(w => w.code === 'unresolved_citation'));
+});
+
 test('rejects symlinked proposal metadata and tampered timestamps', async t => {
   const r = await roots(t);
   const a = createArchive(r);

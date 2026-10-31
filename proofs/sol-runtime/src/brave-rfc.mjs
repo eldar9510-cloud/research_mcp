@@ -55,8 +55,12 @@ export function createBraveRfcAdapter({ token, fetchImpl = globalThis.fetch } = 
       }
       return found;
     },
-    async fetch(input, { signal, limits }) {
+    async fetch(input, { signal, limits, offset = 0, contains } = {}) {
       const url = sourceUrl(input);
+      if (!Number.isSafeInteger(offset) || offset < 0 || offset > limits.sourceResponseBytes ||
+          (contains !== undefined && (typeof contains !== 'string' || !contains.trim() || contains.length > 80))) {
+        throw new Error('invalid_passage_selection');
+      }
       const response = await request(url, { signal, limit: limits.sourceResponseBytes,
         headers: { 'Accept': 'text/html, text/plain' } });
       if (!/^(text\/html|text\/plain)(;|$)/i.test(response.contentType)) throw new Error('unsupported_source_type');
@@ -76,8 +80,16 @@ export function createBraveRfcAdapter({ token, fetchImpl = globalThis.fetch } = 
       }
       text = text.replace(/\s+/g, ' ').trim();
       if (!text) throw new Error('empty_source');
-      return { url, title: title.slice(0, 120), text: text.slice(0, limits.sourceTextChars),
-        truncated: response.truncated || text.length > limits.sourceTextChars };
+      if (contains !== undefined) {
+        const index = text.toLowerCase().indexOf(contains.toLowerCase());
+        if (index === -1) throw new Error('source_passage_not_found');
+        offset = Math.max(0, index - Math.min(240, Math.floor(limits.sourceTextChars / 4)));
+      }
+      if (offset >= text.length) throw new Error('source_passage_not_found');
+      const end = Math.min(text.length, offset + limits.sourceTextChars);
+      return { url, title: title.slice(0, 120), text: text.slice(offset, end), offset,
+        nextOffset: end < text.length ? end : undefined,
+        rawTruncated: response.truncated, truncated: response.truncated || end < text.length };
     },
   };
 }

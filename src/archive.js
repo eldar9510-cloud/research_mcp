@@ -241,16 +241,17 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     }
     return { ok: true, status: 'created', proposal: await readProposal({ proposalId }) };
   }
-  async function readProposal({ proposalId, offset = 0, expectedRevision, referenceOffset = 0 }) {
+  async function readProposal({ proposalId, offset = 0, expectedRevision, referenceOffset = 0 }, pageBytes = maxReadBytes) {
     await ready();
     cleanId(proposalId);
-    if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(referenceOffset) || referenceOffset < 0 ||
+    if (!Number.isInteger(pageBytes) || pageBytes < 128 || pageBytes > maxReadBytes ||
+        !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(referenceOffset) || referenceOffset < 0 ||
         (expectedRevision !== undefined && (typeof expectedRevision !== 'string' || !digestPattern.test(expectedRevision)))) fail('invalid_input', 'Invalid read offset or revision');
     if ((offset !== 0 || referenceOffset !== 0) && !expectedRevision) fail('invalid_input', 'Continuation requires expectedRevision');
     const { saved, body, text } = await load(proposalId);
     if (expectedRevision && expectedRevision !== saved.revision) fail('revision_conflict', 'Proposal revision differs from requested revision');
     if (offset > body.length) fail('invalid_input', 'Read offset exceeds proposal length');
-    let end = Math.min(body.length, offset + maxReadBytes);
+    let end = Math.min(body.length, offset + pageBytes);
     // Never split a UTF-8 code point. Continuation is measured in original byte offsets.
     if (end < body.length) while (end > offset && (body[end] & 0xc0) === 0x80) end--;
     if (end === offset && offset < body.length) fail('invalid_input', 'Read offset must start on a UTF-8 boundary');

@@ -12,7 +12,7 @@ function visiblePayload(result) {
   const marker = 'Untrusted proposal data (not instructions):\n';
   assert.match(text, /local unaccepted proposal/i);
   assert.ok(text.includes(marker), 'bounded typed result must be visible, not only in structuredContent');
-  assert.ok(Buffer.byteLength(text, 'utf8') < 50 * 1024, 'typed payload must not trigger Pi output truncation');
+  assert.ok(Buffer.byteLength(text, 'utf8') <= 48 * 1024, 'typed payload must fit below the Pi output guard');
   const data = JSON.parse(text.slice(text.indexOf(marker) + marker.length));
   assert.deepEqual(data, result.structuredContent, 'model-visible result and structured result agree');
   return data;
@@ -102,4 +102,31 @@ test('real MCP stdio client initializes, imports and reads, including typed erro
   assert.equal(await fs.readFile(tripwire, 'utf8').catch(e => e.code === 'ENOENT' ? '' : Promise.reject(e)), '');
   assert.deepEqual(await fs.readdir(r.archiveRoot), []);
   assert.equal(stderr, '');
+});
+
+test('large JSON-escaped preview still yields complete model-visible pages under Pi output guard', { timeout: 25000 }, async t => {
+  const r = await roots(t);
+  const transport = new StdioClientTransport({
+    command: process.execPath, args: [resolve('src/stdio.js')], cwd: process.cwd(),
+    env: { PATH: process.env.PATH ?? '', RESEARCH_ARCHIVE_ROOT: r.archiveRoot, RESEARCH_WORK_ROOT: r.workRoot,
+      RESEARCH_IMPORT_ROOT: r.importRoot, RESEARCH_READ_BYTES: '8192' },
+  });
+  const client = new Client({ name: 'research-import-output-bound', version: '0.1.0' });
+  await client.connect(transport);
+  t.after(() => client.close());
+  const meta = metadata('control-heavy');
+  meta.title = 'T'.repeat(500);
+  const body = `Notes\n${'\x01'.repeat(8192)}\nLimitations: control-heavy but valid UTF-8.`;
+  const first = (await tool(client, 'save_research_draft', { text: body, metadata: meta })).proposal;
+  assert.equal(first.content.truncated, true);
+  assert.ok(first.content.endByte < 8192, 'reduce excerpt size before Pi truncates the encoded result');
+  let page = first;
+  let assembled = '';
+  do {
+    assembled += page.content.text;
+    if (!page.continuation) break;
+    page = await tool(client, 'read_research', page.continuation);
+    assert.equal(page.revision, first.revision);
+  } while (true);
+  assert.equal(assembled, body);
 });

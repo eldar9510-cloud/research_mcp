@@ -50,7 +50,7 @@ async function matchesLocalTarget(cwd: string, serverName: string): Promise<bool
 // preserves ANSI. Escape controls in the *display copy* only; never alter
 // stored source bytes or the digest that is reviewed before/after confirmation.
 function displayCopy(text: string): string {
-  return text.replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g,
+  return text.replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u061c\u200e-\u200f\u202a-\u202e\u2066-\u2069]/g,
     char => `\\u${char.codePointAt(0)!.toString(16).padStart(4, '0')}`);
 }
 const displayField = (value: unknown) => displayCopy(String(value)).replace(/\n/g, '\\n');

@@ -236,9 +236,14 @@ try {
   initTheme('dark');
   const { ExtensionSelectorComponent } = await import(pathToFileURL(join(process.env.PI_SDK_ROOT,
     'dist/modes/interactive/components/extension-selector.js')).href);
-  const maliciousBody = 'Report π evidence\n\x1b[2J\x1b[H\x1b]0;Spoof approval\x07\x1bPconceal\x1b\\\u009b2J\nEvidence remains.\n';
+  const directionalMarks = [0x061c, 0x200e, 0x200f];
+  const rawDirectionalMarks = String.fromCodePoint(...directionalMarks);
+  const escapedDirectionalMarks = directionalMarks.map(point => `\\u${point.toString(16).padStart(4, '0')}`).join('');
+  const maliciousBody = 'Report π evidence\n\x1b[2J\x1b[H\x1b]0;Spoof approval\x07\x1bPconceal\x1b\\\u009b2J\nEvidence remains.\n' +
+    `Direction markers: ${rawDirectionalMarks}\n`;
   const { created_at, updated_at, imported_at, ...importMeta } = proposal.metadata;
-  const maliciousMeta = { ...importMeta, id: 'terminal-preview', title: 'Test \u009b2J title\nSpoofed review line' };
+  const maliciousMeta = { ...importMeta, id: 'terminal-preview',
+    title: `Test \u009b2J title\nSpoofed review line Direction markers: ${rawDirectionalMarks}` };
   let maliciousEnvelope;
   let maliciousSession;
   try {
@@ -251,6 +256,7 @@ try {
       tool: 'research_pages_review_research_draft', args: { proposalId: draft.proposal.proposalId },
     })).review;
     assert.equal(maliciousEnvelope.sourceDigest, createHash('sha256').update(maliciousBody).digest('hex'));
+    assert.ok(draft.proposal.metadata.title === maliciousMeta.title, 'proposal metadata retains original mark bytes');
     const denied = await proxy.execute('pi-probe-malicious-deny', {
       tool: 'research_import_accept_research_draft', args: acceptArgs(maliciousEnvelope),
     });
@@ -262,10 +268,16 @@ try {
     assert.ok(dialog.text.includes('\\u009b2J title\\nSpoofed review line'), 'metadata controls and line breaks stay inside their field');
     assert.ok(dialog.text.includes('\\u001b]0;Spoof approval\\u0007'), 'OSC and BEL are visible, not active');
     assert.ok(dialog.text.includes('\\u001bPconceal\\u001b\\\\'), 'DCS and ST are visible, not active');
-    assert.ok(!/[\x00-\x09\x0b-\x1f\x7f-\x9f]/.test(dialog.text), 'dialog does not contain terminal controls');
+    assert.ok(dialog.text.includes(`Title: Test \\u009b2J title\\nSpoofed review line Direction markers: ${escapedDirectionalMarks}`),
+      'each metadata directional mark is escaped in the confirmation');
+    assert.ok(dialog.text.includes(`\nDirection markers: ${escapedDirectionalMarks}\n`),
+      'each body directional mark is escaped in the confirmation');
+    assert.ok(!/[\x00-\x09\x0b-\x1f\x7f-\x9f\u061c\u200e\u200f]/.test(dialog.text),
+      'dialog contains no raw terminal or directional controls');
     const rendered = new ExtensionSelectorComponent(`${dialog.title}\n${dialog.text}`, ['Yes', 'No'], () => {}, () => {}).render(120).join('\n');
     assert.ok(!rendered.includes('\x1b[2J') && !rendered.includes('\x1b[H') && !rendered.includes('\x1b]'),
       'installed Pi confirmation renderer does not emit injected screen/OSC controls');
+    assert.ok(!/[\u061c\u200e\u200f]/.test(rendered), 'installed Pi selector emits no raw directional marks');
     assert.deepEqual(await fs.readdir(archiveRoot), []);
   } finally { if (maliciousSession) await close(maliciousSession); }
   approvalEvents.length = 0;
@@ -431,6 +443,7 @@ try {
       tool: 'research_pages_accept_research_draft', args: acceptArgs(review),
     }));
     assert.equal(accepted.status, 'accepted_local_unpublished');
+    assert.equal(accepted.revision, review.reportRevision, 'accepted report has the reviewed revision');
     assert.equal(await acceptCalls(), 2, 'one valid aliased approval, one original approval; no duplicates');
     const show = approvalEvents.filter(e => e.type === 'host_review').at(-1);
     assert.ok(show.text.includes(review.reviewDigest));
@@ -438,7 +451,8 @@ try {
     const page = archivePayload(await proxy.execute('pi-probe-malicious-accepted-read', {
       tool: 'research_pages_read_research', args: { reportId: 'terminal-preview', expectedRevision: accepted.revision },
     }));
-    assert.equal(page.content.text, maliciousBody);
+    assert.ok(page.content.text === maliciousBody, 'accepted body retains the original control bytes');
+    assert.ok(page.metadata.title === maliciousMeta.title, 'accepted metadata retains the original directional bytes');
     assert.equal(page.sourceDigest, createHash('sha256').update(maliciousBody).digest('hex'));
     const stored = await fs.readFile(join(archiveRoot, 'reports', 'terminal-preview.md'));
     assert.ok(stored.subarray(-Buffer.byteLength(maliciousBody)).equals(Buffer.from(maliciousBody)));

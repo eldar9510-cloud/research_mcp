@@ -1,13 +1,28 @@
 import { createHash } from 'node:crypto';
+import { types } from 'node:util';
 import { createAgentSession, createExtensionRuntime, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 
-export const MODEL = Object.freeze({ provider: 'openai-codex', id: 'gpt-6-sol', effort: 'max' });
+export const MODEL = Object.freeze({ provider: 'openai-codex', id: 'gpt-6.1-sol', effort: 'max' });
 const CODEX_BASE_URL = 'https://chatgpt.com/backend-api';
+const TOOL_FAILURE_CODES = new Set([
+  'invalid_query', 'source_out_of_scope', 'source_not_searched', 'invalid_passage_selection',
+  'source_passage_not_found', 'empty_source', 'tool_invalid_output', 'remote_fetch_failed',
+  'search_response_invalid', 'search_layout_unrecognized', 'search_challenge', 'search_response_over_limit',
+  'unsupported_search_type', 'unsupported_source_type', 'tool_output_limit',
+]);
+const toolName = (name) => name === 'research_search' || name === 'research_fetch' ? name : 'other';
+function toolFailureCode(error) {
+  // Native checks do not walk prototypes or invoke traps; never read error.message.
+  if (types.isProxy(error) || !types.isNativeError(error)) return 'other';
+  const descriptor = Object.getOwnPropertyDescriptor(error, 'message');
+  return descriptor && Object.hasOwn(descriptor, 'value') && typeof descriptor.value === 'string' &&
+    TOOL_FAILURE_CODES.has(descriptor.value) ? descriptor.value : 'other';
+}
 export const LIMITS = Object.freeze({
   wallMs: 180_000, modelCalls: 5, toolCalls: 4, toolTimeoutMs: 12_000,
   toolOutputBytes: 10_000, modelOutputChars: 1_500,
-  searchResults: 3, searchResponseBytes: 16_384,
+  searchResults: 3, searchResponseBytes: 65_536,
   sourceResponseBytes: 65_536, sourceTextChars: 2_400,
 });
 
@@ -119,8 +134,16 @@ export async function runInvestigation({ question, scope, signal } = {},
   const searched = new Set();
   const sources = [];
   const usage = [];
+  let firstToolFailure;
+  // Both owned tools force sequential execution; SDK-only rejections end during preflight.
+  // One enum-only active attempt suffices: no argument, arbitrary name or call-ID retention.
+  let activeTool;
+  const recordToolFailure = (attempt, code) => {
+    if (!finished && !firstToolFailure) firstToolFailure = Object.freeze({ ...attempt, code });
+  };
   const common = () => ({ modelCalls, toolCalls, toolOutputBytes: toolBytes,
-    sources: sources.map((item) => ({ ...item })), usage: usage.map((item) => ({ ...item })) });
+    sources: sources.map((item) => ({ ...item })), usage: usage.map((item) => ({ ...item })),
+    ...(firstToolFailure ? { firstToolFailure: Object.freeze({ ...firstToolFailure }) } : {}) });
   const stopped = () => signal?.aborted ? outcome('cancelled', 'user_abort', common()) :
     deadline.aborted ? outcome('incomplete', 'wall_limit', common()) :
       halt.signal.aborted ? outcome(halt.signal.reason.status, halt.signal.reason.reason, common()) : undefined;
@@ -140,21 +163,29 @@ export async function runInvestigation({ question, scope, signal } = {},
     name, label: name, description, parameters, executionMode: 'sequential',
     execute: async (_id, args, sdkSignal) => {
       // Counted at tool_execution_start, before SDK validation, including invalid attempts.
+      const attempt = { tool: name, stage: 'unknown' };
+      activeTool = attempt;
+      const stage = (value) => { attempt.stage = value; };
       if (combined.aborted || sdkSignal?.aborted) throw new Error('cancelled');
       const toolDeadline = AbortSignal.timeout(limits.toolTimeoutMs);
       const operationSignal = AbortSignal.any([combined, sdkSignal ?? combined, toolDeadline]);
       try {
+        stage('input_validation');
         const value = await Promise.race([
-          invoke(args, operationSignal),
+          invoke(args, operationSignal, stage),
           new Promise((_resolve, reject) => {
             if (operationSignal.aborted) reject(new Error('tool_timeout_or_abort'));
             else operationSignal.addEventListener('abort', () => reject(new Error('tool_timeout_or_abort')), { once: true });
           }),
         ]);
         if (operationSignal.aborted || finished) throw new Error('tool_timeout_or_abort');
+        stage('output_encoding');
         const text = JSON.stringify(value);
         const bytes = Buffer.byteLength(text, 'utf8');
-        if (bytes > limits.toolOutputBytes - toolBytes) { fail('tool_output_limit'); throw new Error('tool_output_limit'); }
+        if (bytes > limits.toolOutputBytes - toolBytes) {
+          recordToolFailure(attempt, 'tool_output_limit'); // Snapshot before halt resolves the caller.
+          fail('tool_output_limit'); throw new Error('tool_output_limit');
+        }
         toolBytes += bytes;
         if (name === 'research_search' && value.results.length) {
           searchSucceeded = true;
@@ -164,8 +195,10 @@ export async function runInvestigation({ question, scope, signal } = {},
           offset: value.offset, nextOffset: value.nextOffset, truncated: value.truncated,
           rawTruncated: value.rawTruncated, visibleTextSha256: createHash('sha256').update(value.content).digest('hex'),
           excerpt: value.content }); // Full bounded passage for factual review, not a 240-char prefix.
+        stage('completed');
         return { content: [{ type: 'text', text }], details: {} };
-      } catch {
+      } catch (error) {
+        recordToolFailure(attempt, toolFailureCode(error));
         if (!combined.aborted) {
           if (toolDeadline.aborted) fail('tool_timeout');
           else fail('tool_failure', 'failed');
@@ -177,9 +210,11 @@ export async function runInvestigation({ question, scope, signal } = {},
   const tools = [
     tool('research_search', 'Search the RFC Editor only. Snippets are leads, not inspected pages.',
       Type.Object({ query: Type.String({ minLength: 1, maxLength: 180 }) }),
-      async ({ query }, toolSignal) => {
+      async ({ query }, toolSignal, stage) => {
         if (!query.trim() || query.length > 180) throw new Error('invalid_query');
+        stage('adapter');
         const results = await adapter.search(query, { signal: toolSignal, limits });
+        stage('output_validation');
         if (!Array.isArray(results)) throw new Error('tool_invalid_output');
         return { results: results.slice(0, limits.searchResults).map((r) => ({
           url: sourceUrl(r.url), title: plainText(r.title, 120), snippet: plainText(r.snippet, 180),
@@ -189,10 +224,12 @@ export async function runInvestigation({ question, scope, signal } = {},
       Type.Object({ url: Type.String({ minLength: 1, maxLength: 512 }),
         offset: Type.Optional(Type.Integer({ minimum: 0, maximum: LIMITS.sourceResponseBytes })),
         contains: Type.Optional(Type.String({ minLength: 1, maxLength: 80 })) }),
-      async ({ url, offset, contains }, toolSignal) => {
+      async ({ url, offset, contains }, toolSignal, stage) => {
         const safeUrl = sourceUrl(url);
         if (!searchSucceeded || !searched.has(safeUrl) || (offset !== undefined && contains !== undefined)) throw new Error('source_not_searched');
+        stage('adapter');
         const page = await adapter.fetch(safeUrl, { signal: toolSignal, limits, offset, contains });
+        stage('output_validation');
         if (page.url !== safeUrl || typeof page.offset !== 'number' || !Number.isSafeInteger(page.offset) ||
             page.offset < 0 || typeof page.truncated !== 'boolean' || typeof page.rawTruncated !== 'boolean' ||
             (page.nextOffset !== undefined && (!Number.isSafeInteger(page.nextOffset) || page.nextOffset <= page.offset))) {
@@ -285,8 +322,14 @@ export async function runInvestigation({ question, scope, signal } = {},
     session.subscribe((event) => {
       if (finished || combined.aborted) return;
       if (event.type === 'tool_execution_start') {
+        activeTool = { tool: toolName(event.toolName), stage: 'sdk_start' };
         toolCalls++;
         if (toolCalls > limits.toolCalls) fail('tool_call_limit');
+      }
+      if (event.type === 'tool_execution_end') {
+        if (event.isError) recordToolFailure(activeTool ?? { tool: toolName(event.toolName), stage: 'unknown' },
+          activeTool?.stage === 'sdk_start' ? 'sdk_rejected' : 'other');
+        activeTool = undefined;
       }
       if (event.type === 'message_end' && event.message.role === 'assistant') {
         lastMessage = event.message;

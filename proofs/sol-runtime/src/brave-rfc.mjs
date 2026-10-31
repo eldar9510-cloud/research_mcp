@@ -1,15 +1,18 @@
 import { sourceUrl } from './research.mjs';
 
-// One concrete integration: Brave Web Search API + direct RFC Editor HTTPS page fetch.
-// No implicit network calls at construction; callers supply the credential through env after approval.
+// Reuses the accepted concrete Brave integration, not a provider/router framework.
+// Construction makes no requests. The host supplies the token only after scoped approval.
 export function createBraveRfcAdapter({ token, fetchImpl = globalThis.fetch } = {}) {
   if (typeof token !== 'string' || !token.trim()) throw new Error('search_credential_required');
   if (typeof fetchImpl !== 'function') throw new Error('fetch_unavailable');
 
   async function request(url, { signal, limit, headers = {} }) {
     signal?.throwIfAborted();
-    const response = await fetchImpl(url, { method: 'GET', headers, redirect: 'manual', signal });
-    if (!response.ok || !response.body) throw new Error('remote_fetch_failed'); // No status body/secret echo.
+    const response = await fetchImpl(url, { method: 'GET', headers, redirect: 'manual', credentials: 'omit', signal });
+    if (response.status !== 200 || response.redirected || !response.body) {
+      try { await response.body?.cancel(); } catch { /* Preserve the safe failure code. */ }
+      throw new Error('remote_fetch_failed'); // No status body/secret echo.
+    }
     const reader = response.body.getReader();
     const parts = [];
     let bytes = 0;
@@ -33,17 +36,52 @@ export function createBraveRfcAdapter({ token, fetchImpl = globalThis.fetch } = 
     return { body: Buffer.concat(parts, bytes).toString('utf8'), truncated, contentType: response.headers.get('content-type') ?? '' };
   }
 
+  // Search has stricter media validation and error redaction. Keep the direct-source
+  // request/extraction path above/below identical to the reviewed DDG source half.
+  async function searchRequest(url, { signal, limit }) {
+    let response;
+    let reader;
+    let code = 'remote_fetch_failed';
+    try {
+      signal?.throwIfAborted();
+      response = await fetchImpl(url, { method: 'GET', redirect: 'manual', credentials: 'omit', signal,
+        headers: { Accept: 'application/json', 'X-Subscription-Token': token } });
+      if (response.status !== 200 || response.redirected || !response.body) throw new Error();
+      if (!/^application\/json(?:;|$)/i.test(response.headers.get('content-type') ?? '')) {
+        code = 'unsupported_search_type'; throw new Error();
+      }
+      reader = response.body.getReader();
+      const parts = [];
+      let bytes = 0;
+      for (;;) {
+        signal?.throwIfAborted();
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value.byteLength >= limit - bytes) {
+          code = 'search_response_over_limit'; throw new Error(); // No partial results at the cap.
+        }
+        parts.push(value); bytes += value.byteLength;
+      }
+      signal?.throwIfAborted();
+      return Buffer.concat(parts, bytes).toString('utf8');
+    } catch {
+      try { if (reader) await reader.cancel(); else await response?.body?.cancel(); } catch { /* No raw errors. */ }
+      throw new Error(code); // Never retain API error bodies, URLs, queries, headers or token-bearing exceptions.
+    } finally {
+      reader?.releaseLock();
+    }
+  }
+
   return {
     async search(query, { signal, limits }) {
       if (typeof query !== 'string' || !query.trim() || query.length > 180) throw new Error('invalid_query');
       const url = new URL('https://api.search.brave.com/res/v1/web/search');
       url.searchParams.set('q', `site:rfc-editor.org ${query}`);
       url.searchParams.set('count', String(limits.searchResults));
-      const response = await request(url.href, { signal, limit: limits.searchResponseBytes,
-        headers: { 'Accept': 'application/json', 'X-Subscription-Token': token } });
-      if (response.truncated || !response.contentType.toLowerCase().includes('application/json')) throw new Error('search_response_over_limit');
-      const data = JSON.parse(response.body);
-      if (!Array.isArray(data.web?.results)) throw new Error('search_response_invalid');
+      const body = await searchRequest(url.href, { signal, limit: limits.searchResponseBytes });
+      let data;
+      try { data = JSON.parse(body); } catch { throw new Error('search_response_invalid'); }
+      if (!Array.isArray(data?.web?.results)) throw new Error('search_response_invalid');
       const found = [];
       for (const item of data.web.results) {
         try {

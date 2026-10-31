@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { types } from 'node:util';
 import { LIMITS, MODEL, runInvestigation, sourceUrl } from '../src/research.mjs';
+import { createDuckDuckGoRfcAdapter } from '../src/duckduckgo-rfc.mjs';
 import { createBraveRfcAdapter } from '../src/brave-rfc.mjs';
 import { ModelRuntime } from '@earendil-works/pi-coding-agent';
 
@@ -9,6 +11,8 @@ import { ModelRuntime } from '@earendil-works/pi-coding-agent';
 globalThis.fetch = () => { throw new Error('OFFLINE NETWORK FORBIDDEN'); };
 
 const URL = 'https://www.rfc-editor.org/rfc/rfc2606.html';
+const LITE_RESULT = `<html><head><title>RFC 2606 at DuckDuckGo</title></head><body><form action="/lite/"></form>
+<a class="result-link" href="${URL}">RFC 2606</a><td class="result-snippet">A search lead only</td></body></html>`;
 const INPUT = { question: 'Which second-level example names does RFC 2606 reserve?', scope: 'RFC Editor RFC 2606 only; answer briefly.' };
 const model = { ...MODEL, api: 'openai-codex-responses', baseUrl: 'https://chatgpt.com/backend-api', reasoning: true, thinkingLevelMap: { max: 'max' },
   contextWindow: 272000, maxTokens: 4096, input: ['text'], name: 'Offline fixture' };
@@ -72,6 +76,7 @@ test('offline controlled session: Sol/max, exact tools, source inspection, cited
   const { runtime, trace } = fixture(normalSteps());
   const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter() });
   assert.equal(result.status, 'completed');
+  assert.equal(Object.hasOwn(result, 'firstToolFailure'), false);
   assert.equal(result.model.id, MODEL.id);
   assert.equal(result.model.effort, 'max');
   assert.equal(result.toolCalls, 2);
@@ -82,7 +87,7 @@ test('offline controlled session: Sol/max, exact tools, source inspection, cited
   assert.match(result.result, /\[S1\]/);
   assert.equal(result.usage.length, 3);
   assert.deepEqual(trace.map((t) => t.tools), Array(3).fill(['research_search', 'research_fetch']));
-  assert(trace.every((t) => t.model === 'gpt-6-sol' && t.maxTokens === model.maxTokens && t.reasoning === 'max' &&
+  assert(trace.every((t) => t.model === 'gpt-6.1-sol' && t.maxTokens === model.maxTokens && t.reasoning === 'max' &&
     t.transport === 'sse' && t.maxRetries === 0 && t.signal instanceof AbortSignal));
 });
 
@@ -98,6 +103,20 @@ test('missing catalog model, unsupported max, unavailable auth never call model'
     const { runtime, trace } = fixture(normalSteps(), options);
     const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter() });
     assert.equal(result.status, 'failed'); assert.equal(result.reason, reason);
+    assert.equal(trace.length, 0);
+  }
+});
+
+test('strict 6.1 product pin rejects old/wrong model, provider and API before dispatch', async () => {
+  assert.deepEqual(MODEL, { provider: 'openai-codex', id: 'gpt-6.1-sol', effort: 'max' });
+  for (const candidate of [
+    { ...model, id: 'gpt-6-sol' }, { ...model, id: 'gpt-6.1-terra' },
+    { ...model, provider: 'openai' }, { ...model, api: 'openai-responses' },
+  ]) {
+    const { runtime, trace } = fixture(normalSteps());
+    runtime.getModel = () => candidate; // Also reject an incorrect resolver, not just a missing ID.
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter() });
+    assert.equal(result.status, 'failed'); assert.equal(result.reason, 'model_unavailable');
     assert.equal(trace.length, 0);
   }
 });
@@ -252,6 +271,15 @@ test('search must succeed; an irrelevant fetched citation is insufficient for th
   assert.equal(notEvidence.status, 'incomplete'); assert.equal(notEvidence.reason, 'insufficient_inspected_evidence');
 });
 
+test('fetch must use the same URL returned by search, not another allowlisted RFC representation', async () => {
+  let fetched = 0;
+  const { runtime, trace } = fixture([searchStep, { tool: 'research_fetch', args: { url: 'https://www.rfc-editor.org/rfc/rfc2606.txt' } }]);
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime,
+    adapter: adapter({ fetch: async () => { fetched++; } }) });
+  assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_failure');
+  assert.equal(fetched, 0); assert.equal(trace.length, 2);
+});
+
 test('invalid SDK tool arguments count as attempts before execute', async () => {
   let searches = 0;
   const invalid = { tool: 'research_search', args: {} };
@@ -291,6 +319,206 @@ test('model output limit, tool output limit and truncated model answer remain in
   const length = await runInvestigation(INPUT, { modelRuntime: fixture([{ text: 'Partial', stopReason: 'length' }]).runtime,
     adapter: adapter() });
   assert.equal(length.status, 'incomplete'); assert.equal(length.reason, 'model_output_truncated');
+});
+
+test('first tool failure distinguishes input rejection without another dispatch', async () => {
+  let searches = 0;
+  const { runtime, trace } = fixture([{ ...searchStep, args: { query: ' ' } }]);
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime,
+    adapter: adapter({ search: async () => { searches++; return []; } }) });
+  assert.deepEqual(result.firstToolFailure, { tool: 'research_search', stage: 'input_validation', code: 'invalid_query' });
+  assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_failure');
+  assert.equal(result.modelCalls, 1); assert.equal(result.toolCalls, 1);
+  assert.equal(result.toolOutputBytes, 0); assert.deepEqual(result.sources, []);
+  assert.equal(searches, 0); assert.equal(trace.length, 1);
+});
+
+test('first tool failure separates scope/order, adapter and output-normalizer boundaries', async (t) => {
+  const cases = [
+    { name: 'fetch before search', steps: [fetchStep], tool: 'research_fetch', stage: 'input_validation', code: 'source_not_searched', calls: 0 },
+    { name: 'fetch outside scope', steps: [{ ...fetchStep, args: { url: 'https://outside.invalid/' } }],
+      tool: 'research_fetch', stage: 'input_validation', code: 'source_out_of_scope', calls: 0 },
+    { name: 'malformed layout', response: () => new Response('<html></html>', { headers: { 'content-type': 'text/html' } }),
+      stage: 'adapter', code: 'search_layout_unrecognized', calls: 1 },
+    { name: 'challenge', response: () => new Response('<html>CAPTCHA</html>', { headers: { 'content-type': 'text/html' } }),
+      stage: 'adapter', code: 'search_challenge', calls: 1 },
+    { name: 'request failure', response: () => new Response(null, { status: 503 }),
+      stage: 'adapter', code: 'remote_fetch_failed', calls: 1 },
+    { name: 'unknown request exception', response: () => { throw new Error('synthetic-secret-message', { cause: new Error('synthetic-secret-cause') }); },
+      stage: 'adapter', code: 'other', calls: 1 },
+    { name: 'out-of-scope search result', search: async () => [{ url: 'https://outside.invalid/' }],
+      stage: 'output_validation', code: 'source_out_of_scope', calls: 1 },
+    { name: 'non-array search output', search: async () => ({}),
+      stage: 'output_validation', code: 'tool_invalid_output', calls: 1 },
+    { name: 'invalid fetch output', steps: [searchStep, fetchStep], fetch: async () => ({}),
+      tool: 'research_fetch', stage: 'output_validation', code: 'tool_invalid_output', calls: 2 },
+  ];
+  for (const c of cases) await t.test(c.name, async () => {
+    let calls = 0;
+    const concrete = c.response ? createDuckDuckGoRfcAdapter({ fetchImpl: async () => { calls++; return c.response(); } }) : undefined;
+    const a = concrete ?? adapter({
+      search: async (...args) => { calls++; return (c.search ?? adapter().search)(...args); },
+      fetch: async (...args) => { calls++; return (c.fetch ?? adapter().fetch)(...args); },
+    });
+    const attempts = c.steps?.length ?? 1;
+    const { runtime, trace } = fixture(c.steps ?? [searchStep]);
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: a });
+    assert.deepEqual(result.firstToolFailure, { tool: c.tool ?? 'research_search', stage: c.stage, code: c.code });
+    assert.equal(Object.isFrozen(result.firstToolFailure), true);
+    assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_failure');
+    assert.equal(result.modelCalls, attempts); assert.equal(result.toolCalls, attempts);
+    assert.equal(result.toolOutputBytes, attempts === 2 ? 122 : 0);
+    assert.deepEqual(result.sources, []); assert.equal(trace.length, attempts); assert.equal(calls, c.calls);
+    assert.doesNotMatch(JSON.stringify(result), /synthetic-secret|outside\.invalid|<html>|CAPTCHA/);
+  });
+});
+
+test('failure codes use exact owned literals only, never messages, causes, arguments or arbitrary properties', async () => {
+  const secret = 'synthetic-secret-do-not-retain';
+  const owned = ['invalid_query', 'source_out_of_scope', 'source_not_searched', 'invalid_passage_selection',
+    'source_passage_not_found', 'empty_source', 'tool_invalid_output', 'remote_fetch_failed',
+    'search_response_invalid', 'search_layout_unrecognized', 'search_challenge', 'search_response_over_limit',
+    'unsupported_search_type', 'unsupported_source_type', 'tool_output_limit'];
+  const errors = [
+    ...owned.map((code) => [new Error(code, { cause: new Error(secret) }), code]),
+    [new Error(`search_challenge: ${secret}`), 'other'],
+    [Object.assign(new Error(secret), { code: 'search_challenge' }), 'other'],
+    [{ message: 'search_challenge', cause: secret }, 'other'],
+    [Object.defineProperty(new Error(), 'message', { get() { throw new Error(secret); } }), 'other'],
+  ];
+  for (const [error, code] of errors) {
+    let calls = 0;
+    const { runtime, trace } = fixture([{ ...searchStep, args: { query: secret } }]);
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter({ search: async () => { calls++; throw error; } }) });
+    assert.deepEqual(result.firstToolFailure, { tool: 'research_search', stage: 'adapter', code });
+    assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_failure');
+    assert.equal(result.modelCalls, 1); assert.equal(result.toolCalls, 1); assert.equal(result.toolOutputBytes, 0);
+    assert.deepEqual(result.sources, []); assert.equal(trace.length, 1); assert.equal(calls, 1);
+    assert.equal(JSON.stringify(result).includes(secret), false);
+  }
+});
+
+test('non-executing failure classification preserves real-SDK outcomes for accessors and proxies', async (t) => {
+  const secret = 'synthetic-secret-non-executing-diagnostic';
+  const proxyTraps = (touch) => ({
+    get(target, key, receiver) { touch('get'); return Reflect.get(target, key, receiver); },
+    getPrototypeOf(target) { touch('getPrototypeOf'); return Reflect.getPrototypeOf(target); },
+    getOwnPropertyDescriptor(target, key) { touch('getOwnPropertyDescriptor'); return Reflect.getOwnPropertyDescriptor(target, key); },
+  });
+  const accessor = (touch) => ({ get() { touch('message'); return 'search_challenge'; } });
+  const cases = [
+    { name: 'Error own message accessor', native: true,
+      make: (touch) => Object.defineProperty(new Error(), 'message', accessor(touch)) },
+    { name: 'non-Error message accessor', native: false,
+      make: (touch) => Object.defineProperty({}, 'message', accessor(touch)) },
+    { name: 'Error proxy', native: false, proxy: true,
+      make: (touch) => new Proxy(new Error(secret), proxyTraps(touch)) },
+    { name: 'revoked Error proxy', native: false, proxy: true, make: (touch) => {
+      const revocable = Proxy.revocable(new Error(secret), proxyTraps(touch));
+      revocable.revoke(); return revocable.proxy;
+    } },
+    { name: 'native Error with proxy prototype and own data message', native: true, code: 'search_challenge',
+      make: (touch) => Object.setPrototypeOf(new Error('search_challenge'), new Proxy({}, proxyTraps(touch))) },
+    { name: 'native Error with proxy prototype and inherited message accessor', native: true,
+      make: (touch) => Object.setPrototypeOf(new Error(),
+        new Proxy(Object.defineProperty({}, 'message', accessor(touch)), proxyTraps(touch))) },
+    { name: 'native Error with inherited message accessor', native: true,
+      make: (touch) => Object.setPrototypeOf(new Error(), Object.defineProperty({}, 'message', accessor(touch))) },
+    { name: 'forged Error prototype with own data message', native: false,
+      make: () => Object.assign(Object.create(Error.prototype), { message: 'search_challenge' }) },
+    { name: 'non-string own data message', native: true,
+      make: (touch) => Object.defineProperty(new Error(), 'message', {
+        value: { toString() { touch('toString'); return secret; } },
+      }) },
+  ];
+  for (const c of cases) await t.test(c.name, async () => {
+    async function run(makeError) {
+      const controller = new AbortController();
+      const reads = [];
+      const error = makeError((name) => { reads.push(name); controller.abort(); });
+      const { runtime, trace } = fixture([{ ...searchStep, args: { query: secret } }]);
+      let calls = 0;
+      const result = await runInvestigation({ ...INPUT, signal: controller.signal }, {
+        modelRuntime: runtime, adapter: adapter({ search: async () => { calls++; throw error; } }),
+      });
+      assert.equal(calls, 1); assert.equal(trace.length, 1);
+      return { result, reads, aborted: controller.signal.aborted };
+    }
+    // Check the actual Node helpers, including revoked proxies, without invoking traps.
+    const nativeReads = [];
+    const error = c.make((name) => nativeReads.push(name));
+    assert.equal(types.isProxy(error), c.proxy ?? false);
+    assert.equal(types.isNativeError(error), c.native);
+    assert.deepEqual(nativeReads, []);
+    // Both paths use the installed SDK, with identical inert vs side-effecting rejections.
+    const baseline = await run(() => new Error(c.code ?? secret));
+    const candidate = await run(c.make);
+    assert.deepEqual(candidate.reads, []);
+    assert.equal(candidate.aborted, false);
+    assert.deepEqual(candidate.result, baseline.result);
+    assert.equal(candidate.result.status, 'failed'); assert.equal(candidate.result.reason, 'tool_failure');
+    assert.equal(candidate.result.modelCalls, 1); assert.equal(candidate.result.toolCalls, 1);
+    assert.equal(candidate.result.toolOutputBytes, 0); assert.deepEqual(candidate.result.sources, []);
+    assert.deepEqual(candidate.result.firstToolFailure, { tool: 'research_search', stage: 'adapter', code: c.code ?? 'other' });
+    assert.equal(Object.isFrozen(candidate.result.firstToolFailure), true);
+    assert.equal(JSON.stringify(candidate.result).includes(secret), false);
+  });
+});
+
+test('SDK validation and unknown-tool rejection retain only fixed lifecycle enums, not argument/error text', async () => {
+  const secret = 'synthetic-secret-sdk-arguments-or-tool-name';
+  for (const [tool, args, expectedTool] of [
+    ['research_search', { query: { [secret]: secret } }, 'research_search'],
+    ['research_fetch', { contains: secret }, 'research_fetch'],
+    [secret, { query: secret }, 'other'],
+  ]) {
+    let calls = 0;
+    const { runtime, trace } = fixture([{ tool, args }, { text: 'No inspected source.' }]);
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter({
+      search: async () => { calls++; return []; }, fetch: async () => { calls++; },
+    }) });
+    assert.deepEqual(result.firstToolFailure, { tool: expectedTool, stage: 'sdk_start', code: 'sdk_rejected' });
+    assert.equal(result.status, 'incomplete'); assert.equal(result.reason, 'missing_successful_search');
+    assert.equal(result.modelCalls, 2); assert.equal(result.toolCalls, 1); assert.equal(result.toolOutputBytes, 0);
+    assert.deepEqual(result.sources, []); assert.equal(trace.length, 2); assert.equal(calls, 0);
+    assert.equal(JSON.stringify(result).includes(secret), false);
+  }
+});
+
+test('only the first failure survives later SDK and execute failures without added dispatch', async () => {
+  const { runtime, trace } = fixture([{ ...searchStep, args: {} }, { tool: 'unowned-synthetic-secret', args: {} }, fetchStep]);
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter() });
+  assert.deepEqual(result.firstToolFailure, { tool: 'research_search', stage: 'sdk_start', code: 'sdk_rejected' });
+  assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_failure');
+  assert.equal(result.modelCalls, 3); assert.equal(result.toolCalls, 3); assert.equal(result.toolOutputBytes, 0);
+  assert.deepEqual(result.sources, []); assert.equal(trace.length, 3);
+  assert.doesNotMatch(JSON.stringify(result), /unowned-synthetic-secret/);
+});
+
+test('encoding-limit failure is captured before terminal halt with unchanged accounting', async () => {
+  const { runtime, trace } = fixture(normalSteps());
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter(), limits: { toolOutputBytes: 5 } });
+  assert.deepEqual(result.firstToolFailure, { tool: 'research_search', stage: 'output_encoding', code: 'tool_output_limit' });
+  assert.equal(result.status, 'incomplete'); assert.equal(result.reason, 'tool_output_limit');
+  assert.equal(result.modelCalls, 1); assert.equal(result.toolCalls, 1); assert.equal(result.toolOutputBytes, 0);
+  assert.deepEqual(result.sources, []); assert.equal(trace.length, 1);
+});
+
+test('a late uncooperative adapter cannot change the immutable first-failure terminal snapshot', async () => {
+  let release;
+  const late = new Promise((resolve) => { release = resolve; });
+  const { runtime, trace } = fixture([searchStep]);
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime,
+    adapter: adapter({ search: async () => late }), limits: { toolTimeoutMs: 15 } });
+  assert.deepEqual(result.firstToolFailure, { tool: 'research_search', stage: 'adapter', code: 'other' });
+  assert.equal(result.status, 'incomplete'); assert.equal(result.reason, 'tool_timeout');
+  assert.equal(result.modelCalls, 1); assert.equal(result.toolCalls, 1); assert.equal(result.toolOutputBytes, 0);
+  assert.deepEqual(result.sources, []); assert.equal(trace.length, 1);
+  assert.throws(() => { result.firstToolFailure.code = 'changed'; }, TypeError);
+  const snapshot = JSON.stringify(result);
+  release([{ url: 'https://synthetic-secret-late.invalid/', title: 'synthetic-secret-late', snippet: '' }]);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(JSON.stringify(result), snapshot); assert.equal(trace.length, 1);
 });
 
 test('tool errors terminate without trying another model or echoing provider errors', async () => {
@@ -391,12 +619,13 @@ test('out-of-scope URLs never reach fetch adapter; strict numeric limit validati
     'https://www.rfc-editor.org.evil.test/rfc/rfc2606.html', 'file:///etc/passwd',
     'https://www.rfc-editor.org/rfc/rfc2606.html?token=x']) assert.throws(() => sourceUrl(input));
   await assert.rejects(() => runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter(), limits: { toolCalls: Infinity } }), /invalid_limit/);
+  await assert.rejects(() => runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter(), limits: { searchResponseBytes: 65_537 } }), /invalid_limit/);
 });
 
 test('bounded passage selection reaches relevant text past a long preamble and retains reviewable text', async () => {
   const html = '<title>Official RFC 2606</title><div>' + 'preamble '.repeat(900) +
     '</div><section>RFC 2606 reserves example.com, example.org, and example.net for use in examples.</section>';
-  const a = createBraveRfcAdapter({ token: 'synthetic', fetchImpl: async () =>
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () =>
     new Response(html, { headers: { 'content-type': 'text/html' } }) });
   const passage = await a.fetch(URL, { limits: LIMITS, contains: 'example.com' });
   assert.match(passage.text, /example\.com, example\.org, and example\.net/);
@@ -405,10 +634,9 @@ test('bounded passage selection reaches relevant text past a long preamble and r
 
 test('run retains a cited later passage for review, not a search snippet or 240-character prefix', async () => {
   const body = 'background '.repeat(900) + 'RFC 2606 reserves example.com, example.org, and example.net for use in examples. ' + 'Supporting text '.repeat(30);
-  const a = createBraveRfcAdapter({ token: 'synthetic', fetchImpl: async (url) =>
-    url.startsWith('https://api.search.brave.com/')
-      ? new Response(JSON.stringify({ web: { results: [{ url: URL, title: 'RFC 2606', description: 'A search lead only' }] } }),
-        { headers: { 'content-type': 'application/json' } })
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: async (url) =>
+    url.startsWith('https://lite.duckduckgo.com/lite/')
+      ? new Response(LITE_RESULT, { headers: { 'content-type': 'text/html' } })
       : new Response(body, { headers: { 'content-type': 'text/plain' } }) });
   const selected = { tool: 'research_fetch', args: { url: URL, contains: 'example.com' } };
   const result = await runInvestigation(INPUT, { modelRuntime: fixture([searchStep, selected, { text:
@@ -419,26 +647,183 @@ test('run retains a cited later passage for review, not a search snippet or 240-
   assert.doesNotMatch(result.sources[0].excerpt, /A search lead only/);
 });
 
-test('Brave + RFC adapter uses programmatic search/fetch, strict scope and synthetic responses only', async () => {
+test('Lite + RFC adapter searches then fetches official content using synthetic responses only', async () => {
   const calls = [];
   const fakeFetch = async (url, init) => {
     calls.push({ url, init });
-    if (url.startsWith('https://api.search.brave.com/')) return new Response(JSON.stringify({ web: { results: [
-      { url: URL, title: 'RFC 2606', description: 'A lead' },
-      { url: 'https://evil.test/rfc/rfc2606.html', title: 'Bad' },
-    ] } }), { headers: { 'content-type': 'application/json' } });
+    if (url.startsWith('https://lite.duckduckgo.com/lite/')) return new Response(LITE_RESULT,
+      { headers: { 'content-type': 'text/html' } });
     return new Response('<title>Official RFC</title><script>publish secrets</script><p>RFC 2606 reserves example.com</p>',
       { headers: { 'content-type': 'text/html' } });
   };
-  const a = createBraveRfcAdapter({ token: 'synthetic-placeholder', fetchImpl: fakeFetch });
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: fakeFetch });
   const found = await a.search('reserved examples', { signal: new AbortController().signal, limits: LIMITS });
   assert.equal(found.length, 1); assert.equal(found[0].url, URL);
-  assert.equal(calls[0].init.headers['X-Subscription-Token'], 'synthetic-placeholder');
+  assert.deepEqual(calls[0].init.headers, { Accept: 'text/html' });
   assert(calls[0].url.includes('site%3Arfc-editor.org')); assert.equal(calls[0].init.redirect, 'manual');
   const page = await a.fetch(URL, { signal: new AbortController().signal, limits: LIMITS });
   assert.match(page.text, /RFC 2606 reserves example.com/);
   assert.doesNotMatch(page.text, /publish secrets|<script>/);
-  assert.doesNotMatch(JSON.stringify(found) + JSON.stringify(page), /synthetic-placeholder/);
+  assert.equal(calls[1].url, found[0].url); assert.equal(calls.length, 2);
+});
+
+test('concrete Lite layout failure is sanitized; recognized empty cannot complete the investigation', async () => {
+  for (const [body, status, reason, modelCalls] of [
+    ['<html>private_fixture_marker</html>', 'failed', 'tool_failure', 1],
+    [LITE_RESULT.replace(/<a[\s\S]*<\/a>/, '<td class="no-results">No results found for RFC</td>'),
+      'incomplete', 'missing_successful_search', 2],
+  ]) {
+    let httpCalls = 0;
+    const { runtime, trace } = fixture([searchStep, { text: 'No inspected source.' }]);
+    const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () => { httpCalls++;
+      return new Response(body, { headers: { 'content-type': 'text/html' } });
+    } });
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: a });
+    assert.equal(result.status, status); assert.equal(result.reason, reason);
+    assert.equal(trace.length, modelCalls); assert.equal(httpCalls, 1);
+    assert.doesNotMatch(JSON.stringify(result), /private_fixture_marker|<html>|result-link/);
+  }
+});
+
+test('pseudo-result anchors fail in the real SDK tool loop before source fetching or another model turn', async () => {
+  const anchor = `<a class="result-link" href="${URL}">Hidden lead</a>`;
+  for (const markup of [`<!-- ${anchor}`, `<xmp>${anchor}</xmp>`, `<iframe>${anchor}</iframe>`,
+    `<script><!--<script></script>${anchor}--></script>`]) {
+    const body = LITE_RESULT.replace(/<a[\s\S]*<\/a>/, markup);
+    const calls = [];
+    const a = createDuckDuckGoRfcAdapter({ fetchImpl: async (url) => { calls.push(url);
+      return new Response(body, { headers: { 'content-type': 'text/html' } });
+    } });
+    const { runtime, trace } = fixture(normalSteps());
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: a });
+    assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_failure');
+    assert.equal(trace.length, 1); assert.equal(result.toolCalls, 1); assert.equal(calls.length, 1);
+    assert(calls[0].startsWith('https://lite.duckduckgo.com/lite/'));
+    assert.deepEqual(result.sources, []);
+    assert.doesNotMatch(JSON.stringify(result), /Hidden lead|result-link|<html>/);
+  }
+});
+
+test('tool deadline bounds an uncooperative concrete Lite body read, without auth, retry or fallback', async () => {
+  let httpCalls = 0;
+  let toolSignal;
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: async (_url, { signal }) => {
+    httpCalls++; toolSignal = signal;
+    return new Response(new ReadableStream({ start() {} }), { headers: { 'content-type': 'text/html' } });
+  } });
+  const { runtime, trace } = fixture([searchStep]);
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: a, limits: { wallMs: 1000, toolTimeoutMs: 15 } });
+  assert.equal(result.status, 'incomplete'); assert.equal(result.reason, 'tool_timeout');
+  assert.equal(toolSignal.aborted, true); assert.equal(httpCalls, 1); assert.equal(trace.length, 1);
+});
+
+test('concrete malformed Lite parsing does not monopolize the tool wrapper event loop', async (t) => {
+  const body = LITE_RESULT.replace(/<a[\s\S]*(?=<\/body>)/, '<a' + '-a'.repeat(22_000));
+  assert(Buffer.byteLength(body) < 65_536);
+  const { runtime, trace } = fixture([searchStep]);
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () =>
+    new Response(body, { headers: { 'content-type': 'text/html' } }) });
+  const start = performance.now();
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: a,
+    limits: { wallMs: 100, toolTimeoutMs: 25 } });
+  const ms = performance.now() - start;
+  t.diagnostic(JSON.stringify({ bytes: Buffer.byteLength(body), ms, status: result.status, reason: result.reason }));
+  // Invalid markup should fail promptly, not block both timers for seconds. Exact
+  // deadline outcomes are separately checked while the operation remains pending.
+  assert(ms < 1500);
+  // Deadline preemption is also a valid fail-closed outcome on a loaded machine;
+  // do not turn the original 25 ms configuration into a speed-sensitive assertion.
+  assert(['failed/tool_failure', 'incomplete/tool_timeout', 'incomplete/wall_limit']
+    .includes(`${result.status}/${result.reason}`));
+  assert.equal(trace.length, 1); assert.equal(result.toolCalls, 1);
+  assert.equal(result.sources.length, 0);
+});
+
+test('tool and wall timers remain serviceable after adversarial concrete parsing', async (t) => {
+  const body = LITE_RESULT.replace(/<a[\s\S]*(?=<\/body>)/, '<a' + '-a'.repeat(22_000));
+  for (const [limits, reason] of [
+    [{ wallMs: 1000, toolTimeoutMs: 100 }, 'tool_timeout'],
+    [{ wallMs: 100, toolTimeoutMs: 1000 }, 'wall_limit'],
+  ]) {
+    let rejected = false;
+    let httpCalls = 0;
+    const concrete = createDuckDuckGoRfcAdapter({ fetchImpl: async () => { httpCalls++;
+      return new Response(body, { headers: { 'content-type': 'text/html' } });
+    } });
+    const { runtime, trace } = fixture([searchStep]);
+    const start = performance.now();
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, limits,
+      adapter: { ...concrete, search: async (...args) => {
+        try { await concrete.search(...args); }
+        catch (error) { rejected = /search_(response_invalid|layout_unrecognized)/.test(error.message); }
+        // Keep the tool pending after parsing, so this tests real timer delivery,
+        // not a fake deadline or a parser failure mislabeled as a timeout.
+        return new Promise(() => {});
+      } },
+    });
+    const ms = performance.now() - start;
+    t.diagnostic(JSON.stringify({ limits, ms, status: result.status, reason: result.reason }));
+    assert(ms < 1500); assert.equal(rejected, true);
+    assert.equal(result.status, 'incomplete'); assert.equal(result.reason, reason);
+    assert.equal(httpCalls, 1); assert.equal(trace.length, 1); assert.equal(result.toolCalls, 1);
+    assert.equal(result.sources.length, 0);
+  }
+});
+
+test('Brave + actual SDK loop inspects a later RFC passage, preserving pin/tools/counts/evidence', async () => {
+  const calls = [];
+  const a = createBraveRfcAdapter({ token: 'offline-fixture-token', fetchImpl: async (url, init) => {
+    calls.push({ url, init });
+    return url.startsWith('https://api.search.brave.com/res/v1/web/search?')
+      ? new Response(JSON.stringify({ web: { results: [{ url: URL, title: 'Synthetic lead', description: 'uninspected-api-marker' }] } }),
+        { headers: { 'content-type': 'application/json' } })
+      : new Response('preamble '.repeat(900) + 'example.com, example.org and example.net are reserved for examples.',
+        { headers: { 'content-type': 'text/plain' } });
+  } });
+  const { runtime, trace } = fixture([searchStep, { tool: 'research_fetch', args: { url: URL, contains: 'example.com' } },
+    { text: 'example.com, example.org and example.net are reserved for examples [S1].' }]);
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: a });
+  assert.equal(result.status, 'completed'); assert.equal(result.modelCalls, 3); assert.equal(result.toolCalls, 2);
+  assert.equal(result.sources[0].offset > 2400, true); assert.match(result.sources[0].excerpt, /example\.com/);
+  assert.match(result.sources[0].visibleTextSha256, /^[a-f0-9]{64}$/);
+  assert(trace.every((t) => t.model === 'gpt-6.1-sol' && t.reasoning === 'max' &&
+    t.tools.join(',') === 'research_search,research_fetch' && t.maxRetries === 0));
+  assert.equal(calls.length, 2); assert.deepEqual(calls[1].init.headers, { Accept: 'text/html, text/plain' });
+  assert.doesNotMatch(JSON.stringify(result), /offline-fixture-token|uninspected-api-marker|Synthetic lead/);
+});
+
+test('Brave malformed/error/empty responses preserve SDK diagnostics and cannot count as inspected evidence', async () => {
+  for (const [body, status, reason, code, modelCalls] of [
+    ['{"secret-api-marker":', 200, 'tool_failure', 'search_response_invalid', 1],
+    ['secret-api-marker', 429, 'tool_failure', 'remote_fetch_failed', 1],
+    [JSON.stringify({ web: { results: [] } }), 200, 'missing_successful_search', undefined, 2],
+  ]) {
+    let calls = 0;
+    const a = createBraveRfcAdapter({ token: 'offline-fixture-token', fetchImpl: async () => { calls++;
+      return new Response(body, { status, headers: { 'content-type': 'application/json' } });
+    } });
+    const result = await runInvestigation(INPUT, { modelRuntime: fixture([searchStep, { text: 'No evidence.' }]).runtime, adapter: a });
+    assert.equal(result.reason, reason); assert.equal(result.status, code ? 'failed' : 'incomplete');
+    assert.equal(result.modelCalls, modelCalls); assert.equal(result.toolCalls, 1); assert.equal(calls, 1);
+    assert.deepEqual(result.sources, []);
+    if (code) assert.deepEqual(result.firstToolFailure, { tool: 'research_search', stage: 'adapter', code });
+    else assert.equal(Object.hasOwn(result, 'firstToolFailure'), false);
+    assert.doesNotMatch(JSON.stringify(result), /secret-api-marker|offline-fixture-token/);
+  }
+});
+
+test('Brave uncooperative response read remains bounded by existing SDK tool deadline with no retry/source call', async () => {
+  let calls = 0;
+  let searchSignal;
+  const a = createBraveRfcAdapter({ token: 'offline-fixture-token', fetchImpl: async (_url, { signal }) => {
+    calls++; searchSignal = signal;
+    return new Response(new ReadableStream({ start() {} }), { headers: { 'content-type': 'application/json' } });
+  } });
+  const result = await runInvestigation(INPUT, { modelRuntime: fixture([searchStep]).runtime, adapter: a,
+    limits: { wallMs: 1000, toolTimeoutMs: 15 } });
+  assert.equal(result.status, 'incomplete'); assert.equal(result.reason, 'tool_timeout');
+  assert.equal(searchSignal.aborted, true); assert.equal(calls, 1);
+  assert.equal(result.modelCalls, 1); assert.equal(result.toolCalls, 1); assert.deepEqual(result.sources, []);
 });
 
 test('live entrypoint refuses to run without explicit operator acknowledgement', () => {
@@ -448,14 +833,14 @@ test('live entrypoint refuses to run without explicit operator acknowledgement',
 });
 
 test('search oversized response and page truncation are explicit; redirects are rejected', async () => {
-  const response = async (url) => url.startsWith('https://api.search.brave.com/')
-    ? new Response('x'.repeat(80), { headers: { 'content-type': 'application/json' } })
+  const response = async (url) => url.startsWith('https://lite.duckduckgo.com/lite/')
+    ? new Response('x'.repeat(80), { headers: { 'content-type': 'text/html' } })
     : new Response('x'.repeat(80), { headers: { 'content-type': 'text/plain' } });
-  const a = createBraveRfcAdapter({ token: 'synthetic', fetchImpl: response });
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: response });
   const limits = { ...LIMITS, searchResponseBytes: 20, sourceResponseBytes: 20, sourceTextChars: 10 };
   await assert.rejects(() => a.search('test', { limits }), /search_response_over_limit/);
   const page = await a.fetch(URL, { limits });
   assert.equal(page.truncated, true); assert.equal(page.text.length, 10);
-  const redirect = createBraveRfcAdapter({ token: 'synthetic', fetchImpl: async () => new Response(null, { status: 302, headers: { location: 'http://127.0.0.1/' } }) });
+  const redirect = createDuckDuckGoRfcAdapter({ fetchImpl: async () => new Response(null, { status: 302, headers: { location: 'http://127.0.0.1/' } }) });
   await assert.rejects(() => redirect.fetch(URL, { limits }), /remote_fetch_failed/);
 });

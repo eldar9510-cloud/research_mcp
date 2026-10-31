@@ -482,6 +482,25 @@ test('concrete Lite layout failure is sanitized; recognized empty cannot complet
   }
 });
 
+test('pseudo-result anchors fail in the real SDK tool loop before source fetching or another model turn', async () => {
+  const anchor = `<a class="result-link" href="${URL}">Hidden lead</a>`;
+  for (const markup of [`<!-- ${anchor}`, `<xmp>${anchor}</xmp>`, `<iframe>${anchor}</iframe>`,
+    `<script><!--<script></script>${anchor}--></script>`]) {
+    const body = LITE_RESULT.replace(/<a[\s\S]*<\/a>/, markup);
+    const calls = [];
+    const a = createDuckDuckGoRfcAdapter({ fetchImpl: async (url) => { calls.push(url);
+      return new Response(body, { headers: { 'content-type': 'text/html' } });
+    } });
+    const { runtime, trace } = fixture(normalSteps());
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: a });
+    assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_failure');
+    assert.equal(trace.length, 1); assert.equal(result.toolCalls, 1); assert.equal(calls.length, 1);
+    assert(calls[0].startsWith('https://lite.duckduckgo.com/lite/'));
+    assert.deepEqual(result.sources, []);
+    assert.doesNotMatch(JSON.stringify(result), /Hidden lead|result-link|<html>/);
+  }
+});
+
 test('tool deadline bounds an uncooperative concrete Lite body read, without auth, retry or fallback', async () => {
   let httpCalls = 0;
   let toolSignal;
@@ -493,6 +512,59 @@ test('tool deadline bounds an uncooperative concrete Lite body read, without aut
   const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: a, limits: { wallMs: 1000, toolTimeoutMs: 15 } });
   assert.equal(result.status, 'incomplete'); assert.equal(result.reason, 'tool_timeout');
   assert.equal(toolSignal.aborted, true); assert.equal(httpCalls, 1); assert.equal(trace.length, 1);
+});
+
+test('concrete malformed Lite parsing does not monopolize the tool wrapper event loop', async (t) => {
+  const body = LITE_RESULT.replace(/<a[\s\S]*(?=<\/body>)/, '<a' + '-a'.repeat(22_000));
+  assert(Buffer.byteLength(body) < 65_536);
+  const { runtime, trace } = fixture([searchStep]);
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () =>
+    new Response(body, { headers: { 'content-type': 'text/html' } }) });
+  const start = performance.now();
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: a,
+    limits: { wallMs: 100, toolTimeoutMs: 25 } });
+  const ms = performance.now() - start;
+  t.diagnostic(JSON.stringify({ bytes: Buffer.byteLength(body), ms, status: result.status, reason: result.reason }));
+  // Invalid markup should fail promptly, not block both timers for seconds. Exact
+  // deadline outcomes are separately checked while the operation remains pending.
+  assert(ms < 1500);
+  // Deadline preemption is also a valid fail-closed outcome on a loaded machine;
+  // do not turn the original 25 ms configuration into a speed-sensitive assertion.
+  assert(['failed/tool_failure', 'incomplete/tool_timeout', 'incomplete/wall_limit']
+    .includes(`${result.status}/${result.reason}`));
+  assert.equal(trace.length, 1); assert.equal(result.toolCalls, 1);
+  assert.equal(result.sources.length, 0);
+});
+
+test('tool and wall timers remain serviceable after adversarial concrete parsing', async (t) => {
+  const body = LITE_RESULT.replace(/<a[\s\S]*(?=<\/body>)/, '<a' + '-a'.repeat(22_000));
+  for (const [limits, reason] of [
+    [{ wallMs: 1000, toolTimeoutMs: 100 }, 'tool_timeout'],
+    [{ wallMs: 100, toolTimeoutMs: 1000 }, 'wall_limit'],
+  ]) {
+    let rejected = false;
+    let httpCalls = 0;
+    const concrete = createDuckDuckGoRfcAdapter({ fetchImpl: async () => { httpCalls++;
+      return new Response(body, { headers: { 'content-type': 'text/html' } });
+    } });
+    const { runtime, trace } = fixture([searchStep]);
+    const start = performance.now();
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, limits,
+      adapter: { ...concrete, search: async (...args) => {
+        try { await concrete.search(...args); }
+        catch (error) { rejected = /search_(response_invalid|layout_unrecognized)/.test(error.message); }
+        // Keep the tool pending after parsing, so this tests real timer delivery,
+        // not a fake deadline or a parser failure mislabeled as a timeout.
+        return new Promise(() => {});
+      } },
+    });
+    const ms = performance.now() - start;
+    t.diagnostic(JSON.stringify({ limits, ms, status: result.status, reason: result.reason }));
+    assert(ms < 1500); assert.equal(rejected, true);
+    assert.equal(result.status, 'incomplete'); assert.equal(result.reason, reason);
+    assert.equal(httpCalls, 1); assert.equal(trace.length, 1); assert.equal(result.toolCalls, 1);
+    assert.equal(result.sources.length, 0);
+  }
 });
 
 test('live entrypoint refuses to run without explicit operator acknowledgement', () => {

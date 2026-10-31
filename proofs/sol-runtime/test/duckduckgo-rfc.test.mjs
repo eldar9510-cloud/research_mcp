@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createDuckDuckGoRfcAdapter } from '../src/duckduckgo-rfc.mjs';
 import { LIMITS } from '../src/research.mjs';
 
@@ -121,9 +122,128 @@ test('recognized genuine empty results are distinct from unfamiliar, malformed o
   }
 });
 
+test('malformed token runs below the approved cap have bounded parsing cost', (t) => {
+  // Deterministic adversarial sizes, with a generous backstop rather than a 25 ms
+  // machine-speed assertion. A subprocess also bounds synchronous parser hangs.
+  const bodies = [
+    page('<a' + '-a'.repeat(22_000)).replace('<table>', '').replace('</table>', ''),
+    page('<a '.repeat(14_000)),
+    page('<input ' + 'x '.repeat(22_000) + '="'),
+    page(link(wrapper) + '<input value="' + '<a '.repeat(14_000)),
+    page(link(wrapper) + '</a' + '-a'.repeat(22_000)),
+  ];
+  assert(bodies.every((body) => Buffer.byteLength(body) < 65_536));
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    import { createDuckDuckGoRfcAdapter } from ${JSON.stringify(new URL('../src/duckduckgo-rfc.mjs', import.meta.url).href)};
+    import { LIMITS } from ${JSON.stringify(new URL('../src/research.mjs', import.meta.url).href)};
+    globalThis.fetch = () => { throw new Error('OFFLINE NETWORK FORBIDDEN'); };
+    const input = [];
+    for await (const chunk of process.stdin) input.push(chunk);
+    const measurements = [];
+    for (const body of JSON.parse(Buffer.concat(input).toString('utf8'))) {
+      const adapter = createDuckDuckGoRfcAdapter({ fetchImpl: async () =>
+        new Response(body, { headers: { 'content-type': 'text/html' } }) });
+      const start = performance.now();
+      let error;
+      try { await adapter.search('RFC 2606', { limits: LIMITS }); }
+      catch (caught) { error = caught.message; }
+      measurements.push({ bytes: Buffer.byteLength(body), ms: performance.now() - start, error });
+    }
+    console.log(JSON.stringify(measurements));
+  `], { input: JSON.stringify(bodies), encoding: 'utf8', timeout: 10_000, maxBuffer: 16_384 });
+  assert.ifError(child.error);
+  assert.equal(child.status, 0, child.stderr);
+  const measurements = JSON.parse(child.stdout);
+  assert.equal(measurements.length, bodies.length);
+  t.diagnostic(JSON.stringify(measurements));
+  for (const measurement of measurements) {
+    assert(measurement.ms < 1500, JSON.stringify(measurement));
+    assert.match(measurement.error ?? '', /search_(response_invalid|layout_unrecognized)/);
+  }
+});
+
+test('long complete tags and dense anchor runs retain actual results without lower input caps', async () => {
+  const leads = ['One', 'Two', 'Three', 'Four'].map((title) => link(wrapper, title)).join('');
+  const name = 'custom' + '-a'.repeat(11_000);
+  for (const body of [
+    page(`<div data-padding="${'<>/a '.repeat(10_000)}">${leads}</div>`),
+    page(`<${name}></${name}>${leads}`),
+  ]) {
+    assert(Buffer.byteLength(body) < 65_536);
+    const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () => html(body) });
+    assert.deepEqual((await a.search('RFC 2606', { limits: LIMITS })).map((hit) => hit.title), ['One', 'Two', 'Three']);
+  }
+  const body = page(Array.from({ length: 400 }, (_,i) => link(RFC, `Title ${i}`)).join(''));
+  assert(Buffer.byteLength(body) < 65_536);
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () => html(body) });
+  assert.deepEqual((await a.search('RFC 2606', { limits: LIMITS })).map((hit) => hit.title), ['Title 0', 'Title 1', 'Title 2']);
+});
+
+test('unterminated lexical states cannot supply results or document terminators', async (t) => {
+  for (const [name, body] of [
+    ['comment', page('<!-- ' + link(wrapper))],
+    ['comment after a genuine result', page(link(wrapper) + '<!-- ')],
+    ['quoted attribute after a genuine result', page(link(wrapper) + '<input value="unfinished')],
+    ['plaintext consumes all remaining markup', page('<plaintext>' + link(wrapper) + '</plaintext>')],
+    ['raw-text self-closing syntax is not an HTML close', page('<iframe/>' + link(wrapper))],
+    ['stray anchor end', page(link(wrapper) + '</a>')],
+    ['misnested result markup', page(`<a class="result-link" href="${RFC}"><b>RFC</a></b>`)],
+  ]) await t.test(name, async () => {
+    const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () => html(body) });
+    await assert.rejects(() => a.search('RFC 2606', { limits: LIMITS }), /search_(response_invalid|layout_unrecognized)/);
+  });
+});
+
+test('raw text, RCDATA and inert containers never contribute result anchors', async (t) => {
+  for (const tag of ['script', 'style', 'noscript', 'template', 'textarea', 'xmp', 'iframe', 'noembed', 'noframes', 'svg', 'math', 'select']) {
+    await t.test(tag, async () => {
+      for (const suffix of ['', link(wrapper, 'Visible result')]) {
+        const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () => html(page(`<${tag}>${link(wrapper, 'Hidden result')}</${tag}>` + suffix)) });
+        if (!suffix) await assert.rejects(() => a.search('RFC 2606', { limits: LIMITS }), /search_layout_unrecognized/);
+        else assert.deepEqual(await a.search('RFC 2606', { limits: LIMITS }), [{ url: RFC, title: 'Visible result', snippet: '' }]);
+      }
+      const incomplete = createDuckDuckGoRfcAdapter({ fetchImpl: async () => html(page(link(wrapper) + `<${tag}>unfinished`)) });
+      await assert.rejects(() => incomplete.search('RFC 2606', { limits: LIMITS }), /search_(response_invalid|layout_unrecognized)/);
+    });
+  }
+});
+
+test('comments, quoted attributes, nested templates and script escape states are lexically isolated', async () => {
+  for (const hidden of [
+    `<!-- ${link(wrapper, 'Hidden')} -->`,
+    `<template><template></template><input value="</template>">${link(wrapper, 'Hidden')}</template>`,
+    `<script><!--<script></script>${link(wrapper, 'Hidden')}--></script>`,
+    `<xmp></xmp-not-an-end>${link(wrapper, 'Hidden')}</xmp>`,
+    `<textarea></textarea-not-an-end>${link(wrapper, 'Hidden')}</textarea>`,
+  ]) {
+    const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () => html(page(hidden + link(wrapper, 'Visible'))) });
+    assert.deepEqual(await a.search('RFC 2606', { limits: LIMITS }), [{ url: RFC, title: 'Visible', snippet: '' }]);
+  }
+  for (const escapedClose of ['<!-->', '<!--->', '<!---->']) {
+    const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () =>
+      html(page(`<script>${escapedClose}<script></script>` + link(wrapper, 'Visible'))) });
+    assert.deepEqual(await a.search('RFC 2606', { limits: LIMITS }), [{ url: RFC, title: 'Visible', snippet: '' }]);
+  }
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () => html(page(link(wrapper,
+    'RFC<span title="</a><a class=\'result-link\'>"> Editor</span>'))) });
+  assert.deepEqual(await a.search('RFC 2606', { limits: LIMITS }), [{ url: RFC, title: 'RFC Editor', snippet: '' }]);
+});
+
+test('recognized attributes use HTML character references and ASCII class separators', async () => {
+  const encoded = page(link(wrapper, 'Encoded attributes')).replace("class='result-link'", "class='result&#45;link&#32;other'");
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () => html(encoded) });
+  assert.deepEqual(await a.search('RFC 2606', { limits: LIMITS }), [{ url: RFC, title: 'Encoded attributes', snippet: '' }]);
+  for (const separator of ['\u00a0', '&nbsp;', '&#160;']) {
+    const nonToken = createDuckDuckGoRfcAdapter({ fetchImpl: async () =>
+      html(page(link(wrapper)).replace("class='result-link'", `class='result-link${separator}other'`)) });
+    await assert.rejects(() => nonToken.search('RFC 2606', { limits: LIMITS }), /search_layout_unrecognized/);
+  }
+});
+
 test('challenge and login pages fail even with incidental valid result anchors; never solved or retried', async () => {
   for (const challenge of ['<script src="anomaly.js"></script>', '<form id="challenge-form"></form>',
-    'Unfortunately, bots use DuckDuckGo too.', 'Verify you are human', 'CAPTCHA', '<input type="password">']) {
+    'Unfortunately, bots use DuckDuckGo too.', 'Verify you are human', 'CAPTCHA', '<input type="password">',
+    '<input type="passw&#111;rd">', '<form action="/login"></form>', '<form data-path="/login"></form>']) {
     let calls = 0;
     const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () => { calls++; return html(page(link(RFC) + challenge)); } });
     await assert.rejects(() => a.search('RFC 2606', { limits: LIMITS }), /search_challenge/);

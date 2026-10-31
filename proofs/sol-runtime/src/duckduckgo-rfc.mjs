@@ -1,12 +1,18 @@
 import { sourceUrl } from './research.mjs';
 
 const SEARCH_ENDPOINT = 'https://lite.duckduckgo.com/lite/';
-const TAG_ATTRIBUTES = `(?:"[^"]*"|'[^']*'|[^'">])*`;
+const RAW_TEXT = new Set(['script', 'style', 'noscript', 'textarea', 'title', 'xmp', 'iframe', 'noembed', 'noframes']);
+const INERT = new Set(['template', 'svg', 'math', 'select']);
+const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+const space = (c) => /^[\t\n\f\r ]$/.test(c ?? '');
+const letter = (c) => /^[a-z]$/i.test(c ?? '');
+const nameChar = (c) => /^[a-z\d:_-]$/i.test(c ?? '');
+const invalid = () => { throw new Error('search_response_invalid'); };
 
 // A deliberately conservative recognizer for Lite's observed result-link layout,
 // not a general HTML parser or a promise that the public site is a stable API.
 function decodeEntities(text) {
-  const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0',
     ndash: '–', mdash: '—', hellip: '…', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”' };
   return text.replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (_all, entity) => {
     if (entity[0] !== '#') {
@@ -19,19 +25,124 @@ function decodeEntities(text) {
     return String.fromCodePoint(code);
   });
 }
-function attributes(text) {
-  const found = new Map();
-  let rest = text.trim();
-  while (rest) {
-    const match = /^([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?(?:\s+|$)/.exec(rest);
-    if (!match || found.has(match[1].toLowerCase())) throw new Error('search_response_invalid');
-    found.set(match[1].toLowerCase(), match[2] ?? match[3] ?? match[4] ?? '');
-    rest = rest.slice(match[0].length);
+// Every scan advances a cursor; names/values/text are sliced only once. In
+// particular, a failed tag or quote cannot restart scanning at later '<' tokens.
+function tagAt(body, start) {
+  let i = start + 1;
+  const end = body[i] === '/';
+  if (end) i++;
+  if (!letter(body[i])) invalid();
+  const nameStart = i;
+  while (nameChar(body[i])) i++;
+  const name = body.slice(nameStart, i).toLowerCase();
+  const attrs = new Map();
+  let carriedSpace = false;
+  for (;;) {
+    const before = i;
+    while (space(body[i])) i++;
+    const separated = i > before || carriedSpace;
+    carriedSpace = false;
+    if (body[i] === '>') return { name, attrs, end, next: i + 1 };
+    if (!end && body[i] === '/' && body[i + 1] === '>') {
+      if (!VOID.has(name)) invalid(); // '/>' does not close HTML raw-text elements.
+      return { name, attrs, end, next: i + 2 };
+    }
+    if (end || !separated || i >= body.length) invalid();
+    const attrStart = i;
+    while (i < body.length && !/[\t\n\f\r "'<>/=`]/.test(body[i])) i++;
+    if (i === attrStart) invalid();
+    const key = body.slice(attrStart, i).toLowerCase();
+    if (attrs.has(key)) invalid();
+    const attrEnd = i;
+    while (space(body[i])) i++;
+    carriedSpace = i > attrEnd;
+    let value = '';
+    if (body[i] === '=') {
+      i++;
+      while (space(body[i])) i++;
+      const quote = body[i] === '"' || body[i] === "'" ? body[i++] : undefined;
+      const valueStart = i;
+      if (quote) {
+        while (i < body.length && body[i] !== quote) i++;
+        if (i === body.length) invalid();
+        value = body.slice(valueStart, i++);
+      } else {
+        while (i < body.length && !space(body[i]) && body[i] !== '>') {
+          if (/["'=<>`]/.test(body[i])) invalid();
+          i++;
+        }
+        if (i === valueStart) invalid();
+        value = body.slice(valueStart, i);
+      }
+      carriedSpace = false;
+    }
+    attrs.set(key, value);
   }
-  return found;
 }
-const hasClass = (attrs, name) => (attrs.get('class') ?? '').split(/\s+/).includes(name);
-const textContent = (html) => decodeEntities(html.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+function rawEnd(body, start, name) {
+  const wordAt = (i, word) => body.slice(i, i + word.length).toLowerCase() === word &&
+    (space(body[i + word.length]) || ['/', '>'].includes(body[i + word.length]));
+  let scriptState = 'data';
+  for (let i = start; i < body.length; i++) {
+    // HTML script escaped/double-escaped states, NOT JavaScript interpretation.
+    // A double-escaped </script> changes state but does not close the element.
+    if (name === 'script') {
+      if (scriptState === 'data' && body.startsWith('<!--', i)) { scriptState = 'escaped'; continue; }
+      if (scriptState !== 'data' && body.startsWith('-->', i)) { scriptState = 'data'; i += 2; continue; }
+      if (scriptState === 'escaped' && body[i] === '<' && wordAt(i, '<script')) {
+        scriptState = 'double'; continue;
+      }
+    }
+    if (body[i] === '<' && wordAt(i, `</${name}`)) {
+      if (scriptState === 'double') scriptState = 'escaped';
+      else return i;
+    }
+  }
+  invalid();
+}
+function* liteTokens(body) {
+  if (body.includes('\0')) invalid();
+  let i = 0;
+  let raw;
+  while (i < body.length) {
+    if (raw) {
+      const end = rawEnd(body, i, raw);
+      yield { text: body.slice(i, end), raw: true };
+      i = end; raw = undefined;
+    } else if (body.startsWith('<!--', i)) {
+      const end = body.indexOf('-->', i + 4);
+      if (end === -1 || body.slice(i + 4, end).includes('--')) invalid();
+      i = end + 3;
+    } else if (body.slice(i, i + 9).toLowerCase() === '<!doctype' && space(body[i + 9])) {
+      const start = i;
+      let quote;
+      for (i += 9; i < body.length; i++) {
+        const c = body[i];
+        if (quote) { if (c === quote) quote = undefined; }
+        else if (c === '"' || c === "'") quote = c;
+        else if (c === '>') break;
+        else if (c === '<' || c === '[' || c === ']') invalid();
+      }
+      if (i === body.length || !/^<!doctype\s+html(?:\s|>)/i.test(body.slice(start, i + 1))) invalid();
+      i++;
+      yield { doctype: true };
+    } else if (body[i] === '<') {
+      const tag = tagAt(body, i);
+      i = tag.next;
+      yield tag;
+      if (!tag.end && tag.name === 'plaintext') invalid(); // No HTML end tag exists.
+      if (!tag.end && RAW_TEXT.has(tag.name)) raw = tag.name;
+    } else {
+      const next = body.indexOf('<', i);
+      const end = next === -1 ? body.length : next;
+      yield { text: body.slice(i, end) };
+      i = end;
+    }
+  }
+  if (raw) invalid();
+}
+const hasClass = (attrs, name) => decodeEntities(attrs.get('class') ?? '').split(/[\t\n\f\r ]+/).includes(name);
+const plain = (parts) => decodeEntities(parts.join('')).replace(/\s+/g, ' ').trim();
 function destination(href) {
   const url = new URL(href.startsWith('//') ? `https:${href}` : href);
   if (url.origin === 'https://duckduckgo.com' && url.pathname === '/l/' &&
@@ -42,44 +153,97 @@ function destination(href) {
   return sourceUrl(href);
 }
 function searchResults(body, maximum) {
-  if (/anomaly\.js|anomaly-modal|bots use duckduckgo|challenge-form|verify (?:that )?you are human|captcha|type\s*=\s*["']?password|<form\b[^>]*\/login/i.test(body)) {
+  if (/anomaly\.js|anomaly-modal|bots use duckduckgo|challenge-form|verify (?:that )?you are human|captcha|type\s*=\s*["']?password/i.test(body)) {
     throw new Error('search_challenge');
   }
-  const html = body.replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<(script|style|noscript|template|textarea)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
-  const content = new RegExp(`<body\\b${TAG_ATTRIBUTES}>([\\s\\S]*)<\\/body>\\s*<\\/html>\\s*$`, 'i').exec(html)?.[1];
-  if (!/<html\b/i.test(html) || !content || /<(script|style|noscript|template|textarea|title)\b/i.test(content) ||
-      !/DuckDuckGo/i.test(/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? '')) throw new Error('search_layout_unrecognized');
-  // Consume every body tag, including its quoted attributes, so markup echoed
-  // inside an input value or the document title cannot masquerade as a result.
-  const tags = [...content.matchAll(new RegExp(`<([a-z][\\w:-]*)\\b(${TAG_ATTRIBUTES})>`, 'gi'))];
-  if (!tags.filter((match) => match[1].toLowerCase() === 'form').some((match) => {
-    const action = attributes(match[2]).get('action');
-    return action && new URL(decodeEntities(action), SEARCH_ENDPOINT).href === SEARCH_ENDPOINT;
-  })) throw new Error('search_layout_unrecognized');
-  let recognized = 0;
+  const stack = [];
   const found = [];
-  for (const match of tags) {
-    if (match[1].toLowerCase() !== 'a') continue;
-    const attrs = attributes(match[2]);
-    if (!hasClass(attrs, 'result-link')) continue;
-    recognized++;
-    const close = /^((?:(?!<a\b)[\s\S])*?)<\/a\s*>/i.exec(content.slice(match.index + match[0].length));
-    if (!close || !attrs.get('href')) throw new Error('search_response_invalid');
-    let url;
-    try { url = destination(decodeEntities(attrs.get('href'))); }
-    catch { continue; } // Results outside the unchanged RFC 2606 allowlist are not leads.
-    const title = textContent(close[1]);
-    if (!title) throw new Error('search_response_invalid');
-    if (found.length < maximum) found.push({ url, title: title.slice(0, 120), snippet: '' });
+  let htmlSeen = false, headSeen = false, bodySeen = false, headClosed = false, bodyClosed = false;
+  let titleSeen = false, titleValid = false, form = false, empty = false, doctype = false;
+  let inBody = false, inert = 0, anchor = false, recognized = 0, capture;
+  const layout = () => { throw new Error('search_layout_unrecognized'); };
+  for (const token of liteTokens(body)) {
+    if (token.doctype) {
+      if (htmlSeen || doctype) invalid();
+      doctype = true;
+      continue;
+    }
+    if (token.text !== undefined) {
+      if (!stack.length && token.text.trim()) invalid();
+      if (capture && !inert && (!token.raw || capture.kind === 'title')) capture.parts.push(token.text);
+      continue;
+    }
+    const { name, attrs, end } = token;
+    if (end) {
+      const frame = stack.pop();
+      if (!frame || frame.name !== name) invalid();
+      if (frame.capture) {
+        if (capture.kind === 'title') titleValid = /DuckDuckGo/i.test(plain(capture.parts));
+        else if (capture.kind === 'empty') empty ||= /^No results found\b/i.test(plain(capture.parts));
+        else {
+          let url;
+          try { url = destination(decodeEntities(capture.href)); }
+          catch { /* Recognized out-of-scope results are not leads. */ }
+          if (url) {
+            const title = plain(capture.parts);
+            if (!title) invalid();
+            if (found.length < maximum) found.push({ url, title: title.slice(0, 120), snippet: '' });
+          }
+        }
+        capture = undefined;
+      }
+      if (frame.inert) inert--;
+      if (name === 'a') anchor = false;
+      if (frame.document === 'head') headClosed = true;
+      if (frame.document === 'body') { bodyClosed = true; inBody = false; }
+      if (capture && !inert) capture.parts.push(' ');
+      continue;
+    }
+    if (!htmlSeen && name !== 'html') layout();
+    if (htmlSeen && !stack.length) invalid();
+    const frame = { name, inert: INERT.has(name) };
+    if (!inert) {
+      if (name === 'html') {
+        if (htmlSeen || stack.length) invalid();
+        htmlSeen = true;
+      } else if (name === 'head') {
+        if (stack.length !== 1 || headSeen || bodySeen) invalid();
+        headSeen = true; frame.document = 'head';
+      } else if (name === 'body') {
+        if (stack.length !== 1 || !headClosed || bodySeen) invalid();
+        bodySeen = true; inBody = true; frame.document = 'body';
+      } else if (stack.length < 2) invalid();
+    }
+    const action = name === 'form' && attrs.has('action') ? decodeEntities(attrs.get('action')) : '';
+    if (decodeEntities(attrs.get('type') ?? '').toLowerCase() === 'password' ||
+        (name === 'form' && [...attrs.values()].some((value) => /\/login/i.test(decodeEntities(value))))) {
+      throw new Error('search_challenge');
+    }
+    if (capture && !inert) capture.parts.push(' ');
+    if (frame.inert) inert++;
+    if (name === 'a') { if (anchor) invalid(); anchor = true; }
+    let kind;
+    if (!inert) {
+      if (name === 'title') {
+        if (inBody || titleSeen || stack.at(-1)?.name !== 'head') invalid();
+        titleSeen = true; kind = 'title';
+      }
+      if (inBody && name === 'form' && action && new URL(action, SEARCH_ENDPOINT).href === SEARCH_ENDPOINT) form = true;
+      if (inBody && name === 'a' && hasClass(attrs, 'result-link')) {
+        if (!attrs.get('href')) invalid();
+        recognized++; kind = 'result';
+      }
+      if (inBody && (name === 'td' || name === 'div') && hasClass(attrs, 'no-results')) kind = 'empty';
+    }
+    if (kind) {
+      if (capture) invalid();
+      capture = { kind, parts: [], href: attrs.get('href') };
+      frame.capture = true;
+    }
+    if (!VOID.has(name)) stack.push(frame);
   }
-  const empty = tags.filter((match) => /^(td|div)$/i.test(match[1])).some((match) => {
-    if (!hasClass(attributes(match[2]), 'no-results')) return false;
-    const close = new RegExp(`^([\\s\\S]*?)<\\/${match[1]}\\s*>`, 'i').exec(content.slice(match.index + match[0].length));
-    if (!close) throw new Error('search_response_invalid');
-    return /^No results found\b/i.test(textContent(close[1]));
-  });
-  if ((!recognized && !empty) || (recognized && empty)) throw new Error('search_layout_unrecognized');
+  if (stack.length || !htmlSeen || !headClosed || !bodyClosed || !titleValid || !form ||
+      (!recognized && !empty) || (recognized && empty)) layout();
   return found;
 }
 

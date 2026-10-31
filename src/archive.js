@@ -29,6 +29,8 @@ export const importMetadata = z.object({
 const proposalId = /^proposal-[a-f0-9]{32}$/;
 const digestPattern = /^[a-f0-9]{64}$/;
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
+const MAX_RECORD_BYTES = 24 * 1024; // One bound for serialized publication and subsequent reads.
+const MAX_WARNINGS = 40; // 32 relationships plus eight bounded import diagnostics.
 const MAX_PROPOSALS = 10000;
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const looksLikeCredential = text => /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\b(?:sk-|ghp_)[A-Za-z0-9_-]{20,}\b|\b(?:api[_ -]?key|access[_ -]?token|password|secret)\s*[:=]\s*['\"]?[A-Za-z0-9/+_.=-]{16,}/i.test(text);
@@ -62,9 +64,12 @@ async function noSymlinks(path, allowMissingLeaf = false) {
 }
 async function readRegular(path, max) {
   await noSymlinks(path);
+  // Reject FIFOs/devices before open; O_NONBLOCK also protects against a leaf swap
+  // between lstat and open. O_NOFOLLOW and fstat check the opened descriptor.
+  if (!(await fs.lstat(path)).isFile()) fail('invalid_input', 'Only regular files can be imported or read');
   let fh;
   try {
-    fh = await fs.open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    fh = await fs.open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     const before = await fh.stat();
     if (!before.isFile()) fail('invalid_input', 'Only regular files can be imported or read');
     if (before.size > max) fail('limit_reached', 'File exceeds configured import or proposal limit');
@@ -93,21 +98,22 @@ function referenceTokens(text) {
     ...text.matchAll(/\[(\d{1,6})\](?![:(])/g),
   ];
 }
+const referenceDefinitions = text => [...text.matchAll(/^ {0,3}\[([^\]\n]{1,80})\]:[ \t]*(\S.*)$/gm)];
 function warningsFor(meta, text) {
   const warnings = [];
   const add = (code, message) => warnings.push({ code, message });
   if (meta.researched_at === null) add('unknown_research_date', 'Original research date unknown; import is not verification.');
   if (meta.origin.platform === 'unknown' || meta.origin.author === 'unknown') add('unknown_origin', 'Original platform or author unknown; review attribution.');
-  if (/\b(?:file:\/\/|[A-Za-z]:\\)|(?<![\w./:])(?:\.\.?\/|\/(?:home|tmp|Users)\/)/i.test(text)) add('local_dependency', 'Local file reference may not be portable; review before publication.');
+  if (/(?:\bfile:\/\/|\b[A-Za-z]:\\|(?<![\w./:@%+=&?~#-])(?:\.{1,2}\/|\/(?!\/)[A-Za-z0-9_~.]))/i.test(text)) add('local_dependency', 'Local file reference may not be portable; review before publication.');
   if (/\b(?:transcript|chat log|conversation-only|private conversation)\b/i.test(text)) add('transcript_dependency', 'Possible transcript-only evidence; review before publication.');
-  const definitions = new Set([...text.matchAll(/^\[([^\]\n]{1,80})\]:[ \t]*\S+/gm)].map(m => m[1].toLowerCase()));
+  const definitions = new Set(referenceDefinitions(text).map(m => m[1].toLowerCase()));
   const references = referenceTokens(text);
   if (references.some(m => !definitions.has(m[1].toLowerCase()) && !definitions.has(`^${m[1].toLowerCase()}`))) add('unresolved_citation', 'Unresolved Markdown reference or footnote; no target was invented.');
   if (/\b(?:ignore (?:previous|all) instructions|reveal (?:secrets|credentials)|publish (?:this|unrelated)|send (?:secrets|credentials))\b/i.test(text)) add('untrusted_instructions', 'Report may contain instructions; treat as untrusted source text, never authorization.');
   for (const r of meta.related_reports) add('unverified_relationship', `Relationship to ${r.id} is unverified until reviewed.`);
   if (meta.superseded_by) add('unverified_supersession', 'Supersession link is unverified until reviewed.');
   add('unverified_import', 'Imported claims and publication rights have not been checked.');
-  return warnings.slice(0, 36);
+  return warnings;
 }
 async function publishFile(path, data) {
   // A temporary file plus an exclusive hard link makes the final name atomic and non-overwriting.
@@ -147,13 +153,13 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
   async function load(pid) {
     const p = paths(pid);
     let raw;
-    try { raw = await readRegular(p.meta, 16000); }
+    try { raw = await readRegular(p.meta, MAX_RECORD_BYTES); }
     catch (e) { if (e.code === 'not_found') fail('not_found', 'Proposal not found'); throw e; }
     let saved;
     try { saved = JSON.parse(utf8(raw)); } catch { fail('archive_unavailable', 'Proposal metadata is invalid'); }
     if (!saved || saved.state !== 'LOCAL_UNACCEPTED' || saved.proposalId !== pid || !digestPattern.test(saved.sourceDigest ?? '') ||
         !digestPattern.test(saved.revision ?? '') || !safeStoredMetadata(saved.metadata) ||
-        !Array.isArray(saved.warnings) || saved.warnings.length > 36 ||
+        !Array.isArray(saved.warnings) || saved.warnings.length > MAX_WARNINGS ||
         !saved.warnings.every(w => w && typeof w.code === 'string' && /^[a-z_]{1,48}$/.test(w.code) &&
           typeof w.message === 'string' && Buffer.byteLength(w.message, 'utf8') <= 512)) fail('archive_unavailable', 'Proposal metadata is invalid');
     let body;
@@ -209,6 +215,7 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
       if (sourcePath.length > 4096 || /[\x00-\x1f]/.test(sourcePath) || !isAbsolute(sourcePath) || !inside(source, resolve(sourcePath)) || !/\.(md|markdown|txt)$/i.test(sourcePath)) fail('invalid_input', 'Selected report must be a Markdown or text file inside the import root');
       bytes = await readRegular(resolve(sourcePath), MAX_SOURCE_BYTES);
     } else {
+      if (!text.isWellFormed()) fail('invalid_input', 'Report must be well-formed Unicode text');
       bytes = Buffer.from(text, 'utf8');
       if (bytes.length > MAX_SOURCE_BYTES) fail('limit_reached', 'Report exceeds import limit');
     }
@@ -231,17 +238,19 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     if (typeof timestamp !== 'string' || Number.isNaN(Date.parse(timestamp)) || new Date(timestamp).toISOString() !== timestamp) fail('archive_unavailable', 'Archive clock is invalid');
     const record = { ...m, created_at: timestamp, updated_at: timestamp, imported_at: timestamp };
     const saved = { proposalId, state: 'LOCAL_UNACCEPTED', sourceDigest, revision: revision(record, sourceDigest), metadata: record, warnings: warningsFor(m, bodyText) };
+    const serialized = JSON.stringify(saved, null, 2) + '\n';
+    if (Buffer.byteLength(serialized, 'utf8') > MAX_RECORD_BYTES) fail('limit_reached', 'Proposed metadata and warnings exceed storage limit');
     const p = paths(proposalId);
     try {
       await publishFile(p.body, bytes);
-      await publishFile(p.meta, JSON.stringify(saved, null, 2) + '\n');
+      await publishFile(p.meta, serialized);
     } catch (e) {
       if (e.code === 'EEXIST') fail('revision_conflict', 'Proposal location already exists; do not overwrite');
       throw e;
     }
     return { ok: true, status: 'created', proposal: await readProposal({ proposalId }) };
   }
-  async function readProposal({ proposalId, offset = 0, expectedRevision, referenceOffset = 0 }, pageBytes = maxReadBytes) {
+  async function readProposal({ proposalId, offset = 0, expectedRevision, referenceOffset = 0, pageBytes: windowBytes }, pageBytes = windowBytes ?? maxReadBytes) {
     await ready();
     cleanId(proposalId);
     if (!Number.isInteger(pageBytes) || pageBytes < 128 || pageBytes > maxReadBytes ||
@@ -263,7 +272,7 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     const endChar = startChar + excerpt.length;
     const refs = [...new Set(referenceTokens(text)
       .filter(m => m.index < endChar && m.index + m[0].length > startChar).map(m => m[1].toLowerCase()))];
-    const definitions = [...text.matchAll(/^\[([^\]\n]{1,80})\]:[ \t]*(\S.*)$/gm)];
+    const definitions = referenceDefinitions(text);
     const citations = refs.map(label => {
       const match = definitions.find(d => d[1].toLowerCase() === label || d[1].toLowerCase() === `^${label}`);
       if (!match) return { label, status: 'unresolved' };
@@ -283,7 +292,7 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
       content: { text: excerpt, startByte: offset, endByte: end, totalBytes: body.length, truncated: nextOffset !== null, nextOffset },
       citations: slice, citationsTruncated: nextReferenceOffset !== null,
       continuation: nextOffset === null && nextReferenceOffset === null ? null :
-        { proposalId, expectedRevision: saved.revision,
+        { proposalId, expectedRevision: saved.revision, pageBytes,
           ...(nextReferenceOffset !== null ? { referenceOffset: nextReferenceOffset, offset } : { offset: nextOffset }) },
     };
   }

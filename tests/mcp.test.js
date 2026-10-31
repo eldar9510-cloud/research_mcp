@@ -80,6 +80,7 @@ test('real MCP stdio client initializes, imports and reads, including typed erro
   const citationDraft = (await tool(client, 'save_research_draft', { text: citationBody, metadata: metadata('citation-pages') })).proposal;
   assert.ok(citationDraft.warnings.some(w => w.code === 'unresolved_citation'));
   assert.equal(citationDraft.citationsTruncated, true);
+  assert.equal(citationDraft.continuation.pageBytes, 256);
   assert.deepEqual(citationDraft.citations.map(c => c.status), Array(12).fill('unresolved'));
   const citationPage = await tool(client, 'read_research', citationDraft.continuation);
   assert.deepEqual(citationPage.citations.map(c => c.status), [...Array(5).fill('unresolved'), 'defined']);
@@ -99,9 +100,83 @@ test('real MCP stdio client initializes, imports and reads, including typed erro
   const secret = await client.callTool({ name: 'save_research_draft', arguments: { text: syntheticCredential, metadata: metadata('credential-test') } });
   assert.equal(secret.structuredContent.error.code, 'invalid_input');
   assert.ok(!JSON.stringify(secret).includes(syntheticCredential));
+  const malformedUnicode = await client.callTool({ name: 'save_research_draft', arguments: { text: 'invalid \ud800 text', metadata: metadata('surrogate') } });
+  assert.equal(malformedUnicode.isError, true);
+  assert.equal(malformedUnicode.structuredContent.error.code, 'invalid_input');
+  assert.ok(!JSON.stringify(malformedUnicode).includes('\ufffd'), 'never report silently replaced content as imported');
+  const afterMalformed = await tool(client, 'save_research_draft', { text: 'Valid text 😀', metadata: metadata('surrogate') });
+  assert.equal(afterMalformed.status, 'created');
   assert.equal(await fs.readFile(tripwire, 'utf8').catch(e => e.code === 'ENOENT' ? '' : Promise.reject(e)), '');
   assert.deepEqual(await fs.readdir(r.archiveRoot), []);
   assert.equal(stderr, '');
+});
+
+test('JSON-expanded body and 18 citations paginate one revision without shifting the citation window', { timeout: 25000 }, async t => {
+  const r = await roots(t);
+  const transport = new StdioClientTransport({
+    command: process.execPath, args: [resolve('src/stdio.js')], cwd: process.cwd(),
+    env: { PATH: process.env.PATH ?? '', RESEARCH_ARCHIVE_ROOT: r.archiveRoot, RESEARCH_WORK_ROOT: r.workRoot,
+      RESEARCH_IMPORT_ROOT: r.importRoot, RESEARCH_READ_BYTES: '8192' },
+  });
+  const client = new Client({ name: 'research-import-citation-window', version: '0.1.0' });
+  await client.connect(transport);
+  t.after(() => client.close());
+  const labels = Array.from({ length: 18 }, (_, i) => `ref${i}`);
+  const body = `See ${labels.map(x => `[source][${x}]`).join(' ')}.\n${'\x01'.repeat(9000)}\n${labels.map(x => `[${x}]: https://example.org/${x}`).join('\n')}\n`;
+  const first = (await tool(client, 'save_research_draft', { text: body, metadata: metadata('shrunk-window') })).proposal;
+  assert.equal(first.content.endByte, 4096, 'first JSON-expanded page must shrink');
+  assert.equal(first.citations.length, 12);
+  assert.equal(first.continuation.pageBytes, 4096);
+  let page = first;
+  let assembled = '';
+  const references = new Set();
+  for (let count = 0; ; count++) {
+    assert.ok(count < 12, 'finite continuation');
+    assert.equal(page.revision, first.revision);
+    assert.equal(page.proposalId, first.proposalId);
+    for (const citation of page.citations) {
+      assert.equal(citation.target, `https://example.org/${citation.label}`);
+      references.add(citation.label);
+    }
+    if (page.content.startByte === first.content.startByte && page.continuation?.referenceOffset) {
+      assert.equal(page.content.endByte, first.content.endByte, 'citation-only continuation must preserve end byte');
+    }
+    // A citation continuation repeats a *single* body excerpt; count it once.
+    if (page === first || page.content.startByte !== first.content.startByte) assembled += page.content.text;
+    if (!page.continuation) break;
+    const next = await tool(client, 'read_research', page.continuation);
+    if (page.continuation.referenceOffset !== undefined) {
+      assert.equal(next.content.startByte, page.content.startByte);
+      assert.equal(next.content.endByte, page.content.endByte);
+      assert.equal(next.content.text, page.content.text);
+    } else assert.equal(next.content.startByte, page.content.endByte);
+    page = next;
+  }
+  assert.deepEqual([...references].sort(), [...labels].sort());
+  assert.equal(assembled, body);
+  const stale = await client.callTool({ name: 'read_research', arguments: { ...first.continuation, expectedRevision: '0'.repeat(64) } });
+  assert.equal(stale.structuredContent.error.code, 'revision_conflict');
+});
+
+test('first citation page anticipates a wider later citation page before emitting its window', { timeout: 25000 }, async t => {
+  const r = await roots(t);
+  const transport = new StdioClientTransport({
+    command: process.execPath, args: [resolve('src/stdio.js')], cwd: process.cwd(),
+    env: { PATH: process.env.PATH ?? '', RESEARCH_ARCHIVE_ROOT: r.archiveRoot, RESEARCH_WORK_ROOT: r.workRoot,
+      RESEARCH_IMPORT_ROOT: r.importRoot, RESEARCH_READ_BYTES: '8192' },
+  });
+  const client = new Client({ name: 'research-import-wide-followup', version: '0.1.0' });
+  await client.connect(transport);
+  t.after(() => client.close());
+  const labels = Array.from({ length: 18 }, (_, i) => `ref${i}`);
+  const body = `See ${labels.map(x => `[source][${x}]`).join(' ')}.\n${'\x01'.repeat(7600)}\n${labels.map((x, i) => `[${x}]: https://example.org/${i < 12 ? x : 'z'.repeat(230)}`).join('\n')}\n`;
+  const first = (await tool(client, 'save_research_draft', { text: body, metadata: metadata('wide-targets') })).proposal;
+  assert.equal(first.content.endByte, 4096, 'later long citation targets must force initial shrink even if initial page fits');
+  const next = await tool(client, 'read_research', first.continuation);
+  assert.equal(next.content.text, first.content.text);
+  assert.equal(next.content.endByte, first.content.endByte);
+  assert.equal(next.citations.length, 6);
+  assert.equal(next.citations.at(-1).target, `https://example.org/${'z'.repeat(230)}`);
 });
 
 test('large JSON-escaped preview still yields complete model-visible pages under Pi output guard', { timeout: 25000 }, async t => {

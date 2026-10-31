@@ -298,6 +298,7 @@ test('tool errors terminate without trying another model or echoing provider err
   const result = await runInvestigation(INPUT, { modelRuntime: runtime,
     adapter: adapter({ search: async () => { throw new Error('private synthetic token'); } }) });
   assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_failure');
+  assert.equal(result.modelCalls, 1); assert.equal(result.toolCalls, 1);
   assert.equal(trace.length, 1); assert.doesNotMatch(JSON.stringify(result), /private synthetic token/);
 });
 
@@ -319,13 +320,15 @@ test('wall deadline and tool deadline are enforced independently', async () => {
   const wall = await runInvestigation(INPUT, { modelRuntime: fixture([searchStep]).runtime,
     adapter: adapter({ search: async (_q, { signal }) => {
       await new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }));
-    } }), limits: { wallMs: 15 } });
+    } }), limits: { wallMs: 15, toolTimeoutMs: 100 } });
   assert.equal(wall.status, 'incomplete'); assert.equal(wall.reason, 'wall_limit');
+  assert.equal(wall.modelCalls, 1); assert.equal(wall.toolCalls, 1);
   const toolTimeout = await runInvestigation(INPUT, { modelRuntime: fixture([searchStep]).runtime,
     adapter: adapter({ search: async (_q, { signal }) => {
       await new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }));
     } }), limits: { toolTimeoutMs: 15 } });
-  assert.equal(toolTimeout.status, 'failed'); assert.equal(toolTimeout.reason, 'tool_timeout');
+  assert.equal(toolTimeout.status, 'incomplete'); assert.equal(toolTimeout.reason, 'tool_timeout');
+  assert.equal(toolTimeout.modelCalls, 1); assert.equal(toolTimeout.toolCalls, 1);
 });
 
 test('a late fetch resolution cannot mutate the returned source or usage snapshot', async () => {
@@ -347,8 +350,21 @@ test('uncooperative tool is bounded by tool timeout without a second model call'
   const { runtime, trace } = fixture([searchStep]);
   const result = await runInvestigation(INPUT, { modelRuntime: runtime,
     adapter: adapter({ search: async () => new Promise(() => {}) }), limits: { toolTimeoutMs: 15 } });
-  assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_timeout');
+  assert.equal(result.status, 'incomplete'); assert.equal(result.reason, 'tool_timeout');
+  assert.equal(result.modelCalls, 1); assert.equal(result.toolCalls, 1);
   assert.equal(trace.length, 1);
+});
+
+test('user cancellation overlapping a tool deadline retains cancellation priority', async () => {
+  const controller = new AbortController();
+  const { runtime, trace } = fixture([searchStep]);
+  const result = await runInvestigation({ ...INPUT, signal: controller.signal }, { modelRuntime: runtime,
+    adapter: adapter({ search: async (_q, { signal }) => {
+      signal.addEventListener('abort', () => controller.abort(), { once: true });
+      return new Promise(() => {});
+    } }), limits: { toolTimeoutMs: 15 } });
+  assert.equal(result.status, 'cancelled'); assert.equal(result.reason, 'user_abort');
+  assert.equal(result.modelCalls, 1); assert.equal(result.toolCalls, 1); assert.equal(trace.length, 1);
 });
 
 test('untrusted page cannot grant publication tools or credential access', async () => {

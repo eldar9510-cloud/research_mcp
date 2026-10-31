@@ -141,7 +141,8 @@ export async function runInvestigation({ question, scope, signal } = {},
     execute: async (_id, args, sdkSignal) => {
       // Counted at tool_execution_start, before SDK validation, including invalid attempts.
       if (combined.aborted || sdkSignal?.aborted) throw new Error('cancelled');
-      const operationSignal = AbortSignal.any([combined, sdkSignal ?? combined, AbortSignal.timeout(limits.toolTimeoutMs)]);
+      const toolDeadline = AbortSignal.timeout(limits.toolTimeoutMs);
+      const operationSignal = AbortSignal.any([combined, sdkSignal ?? combined, toolDeadline]);
       try {
         const value = await Promise.race([
           invoke(args, operationSignal),
@@ -165,7 +166,10 @@ export async function runInvestigation({ question, scope, signal } = {},
           excerpt: value.content }); // Full bounded passage for factual review, not a 240-char prefix.
         return { content: [{ type: 'text', text }], details: {} };
       } catch {
-        if (!combined.aborted) fail(operationSignal.aborted ? 'tool_timeout' : 'tool_failure', 'failed');
+        if (!combined.aborted) {
+          if (toolDeadline.aborted) fail('tool_timeout');
+          else fail('tool_failure', 'failed');
+        }
         throw new Error('research_tool_failed'); // No provider responses, URLs or credentials echoed.
       }
     },

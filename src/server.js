@@ -4,10 +4,10 @@ import { ArchiveError, createArchive } from './archive.js';
 
 const MAX_VISIBLE_BYTES = 48 * 1024; // Below the installed Pi adapter's default 50 KiB text guard.
 
-export function createServer(config) {
-  const archive = createArchive(config);
-  const server = new McpServer({ name: 'research-mcp-import', version: '0.1.0' }, { capabilities: { tools: {} } });
-  async function result(action, readArgs, kind = 'proposal') {
+// Shared bounded archive presentation for MCP and the project-local Pi read-only workflow.
+// This is a local module seam, not an extension-to-MCP dispatch interface.
+export function createArchiveResponder(archive, config) {
+  return async function result(action, readArgs, kind = 'proposal') {
     try {
       let data = await action();
       const explanation = kind === 'proposal' ? (data.status === 'duplicate'
@@ -69,7 +69,13 @@ export function createServer(config) {
       const { code, message } = error instanceof ArchiveError ? error : { code: 'archive_unavailable', message: 'Archive operation failed; inspect local storage without sharing credentials.' };
       return { isError: true, content: [{ type: 'text', text: `${code}: ${message}` }], structuredContent: { ok: false, error: { code, message } } };
     }
-  }
+  };
+}
+
+export function createServer(config) {
+  const archive = createArchive(config);
+  const server = new McpServer({ name: 'research-mcp-import', version: '0.1.0' }, { capabilities: { tools: {} } });
+  const result = createArchiveResponder(archive, config);
   server.registerTool('save_research_draft', {
     description: 'Import a finished UTF-8 Markdown/plain-text file inside RESEARCH_IMPORT_ROOT, or text, as a LOCAL UNACCEPTED proposal. Does not research, verify, accept or publish. Required metadata: id/title/question/scope/summary/researched_at/last_improved_at/language/origin {kind: imported,platform,author,model}/related_reports [{id,relationship}]/warnings/superseded_by. Dates unknown: null; unknown origin values: "unknown". Max 2 MiB. Read with read_research.',
     inputSchema: { sourcePath: z.string().optional(), text: z.string().optional(), metadata: z.unknown() },

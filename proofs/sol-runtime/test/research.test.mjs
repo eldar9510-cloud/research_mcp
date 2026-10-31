@@ -74,6 +74,7 @@ test('offline controlled session: Sol/max, exact tools, source inspection, cited
   const { runtime, trace } = fixture(normalSteps());
   const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter() });
   assert.equal(result.status, 'completed');
+  assert.equal(Object.hasOwn(result, 'firstToolFailure'), false);
   assert.equal(result.model.id, MODEL.id);
   assert.equal(result.model.effort, 'max');
   assert.equal(result.toolCalls, 2);
@@ -316,6 +317,139 @@ test('model output limit, tool output limit and truncated model answer remain in
   const length = await runInvestigation(INPUT, { modelRuntime: fixture([{ text: 'Partial', stopReason: 'length' }]).runtime,
     adapter: adapter() });
   assert.equal(length.status, 'incomplete'); assert.equal(length.reason, 'model_output_truncated');
+});
+
+test('first tool failure distinguishes input rejection without another dispatch', async () => {
+  let searches = 0;
+  const { runtime, trace } = fixture([{ ...searchStep, args: { query: ' ' } }]);
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime,
+    adapter: adapter({ search: async () => { searches++; return []; } }) });
+  assert.deepEqual(result.firstToolFailure, { tool: 'research_search', stage: 'input_validation', code: 'invalid_query' });
+  assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_failure');
+  assert.equal(result.modelCalls, 1); assert.equal(result.toolCalls, 1);
+  assert.equal(result.toolOutputBytes, 0); assert.deepEqual(result.sources, []);
+  assert.equal(searches, 0); assert.equal(trace.length, 1);
+});
+
+test('first tool failure separates scope/order, adapter and output-normalizer boundaries', async (t) => {
+  const cases = [
+    { name: 'fetch before search', steps: [fetchStep], tool: 'research_fetch', stage: 'input_validation', code: 'source_not_searched', calls: 0 },
+    { name: 'fetch outside scope', steps: [{ ...fetchStep, args: { url: 'https://outside.invalid/' } }],
+      tool: 'research_fetch', stage: 'input_validation', code: 'source_out_of_scope', calls: 0 },
+    { name: 'malformed layout', response: () => new Response('<html></html>', { headers: { 'content-type': 'text/html' } }),
+      stage: 'adapter', code: 'search_layout_unrecognized', calls: 1 },
+    { name: 'challenge', response: () => new Response('<html>CAPTCHA</html>', { headers: { 'content-type': 'text/html' } }),
+      stage: 'adapter', code: 'search_challenge', calls: 1 },
+    { name: 'request failure', response: () => new Response(null, { status: 503 }),
+      stage: 'adapter', code: 'remote_fetch_failed', calls: 1 },
+    { name: 'unknown request exception', response: () => { throw new Error('synthetic-secret-message', { cause: new Error('synthetic-secret-cause') }); },
+      stage: 'adapter', code: 'other', calls: 1 },
+    { name: 'out-of-scope search result', search: async () => [{ url: 'https://outside.invalid/' }],
+      stage: 'output_validation', code: 'source_out_of_scope', calls: 1 },
+    { name: 'non-array search output', search: async () => ({}),
+      stage: 'output_validation', code: 'tool_invalid_output', calls: 1 },
+    { name: 'invalid fetch output', steps: [searchStep, fetchStep], fetch: async () => ({}),
+      tool: 'research_fetch', stage: 'output_validation', code: 'tool_invalid_output', calls: 2 },
+  ];
+  for (const c of cases) await t.test(c.name, async () => {
+    let calls = 0;
+    const concrete = c.response ? createDuckDuckGoRfcAdapter({ fetchImpl: async () => { calls++; return c.response(); } }) : undefined;
+    const a = concrete ?? adapter({
+      search: async (...args) => { calls++; return (c.search ?? adapter().search)(...args); },
+      fetch: async (...args) => { calls++; return (c.fetch ?? adapter().fetch)(...args); },
+    });
+    const attempts = c.steps?.length ?? 1;
+    const { runtime, trace } = fixture(c.steps ?? [searchStep]);
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: a });
+    assert.deepEqual(result.firstToolFailure, { tool: c.tool ?? 'research_search', stage: c.stage, code: c.code });
+    assert.equal(Object.isFrozen(result.firstToolFailure), true);
+    assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_failure');
+    assert.equal(result.modelCalls, attempts); assert.equal(result.toolCalls, attempts);
+    assert.equal(result.toolOutputBytes, attempts === 2 ? 122 : 0);
+    assert.deepEqual(result.sources, []); assert.equal(trace.length, attempts); assert.equal(calls, c.calls);
+    assert.doesNotMatch(JSON.stringify(result), /synthetic-secret|outside\.invalid|<html>|CAPTCHA/);
+  });
+});
+
+test('failure codes use exact owned literals only, never messages, causes, arguments or arbitrary properties', async () => {
+  const secret = 'synthetic-secret-do-not-retain';
+  const owned = ['invalid_query', 'source_out_of_scope', 'source_not_searched', 'invalid_passage_selection',
+    'source_passage_not_found', 'empty_source', 'tool_invalid_output', 'remote_fetch_failed',
+    'search_response_invalid', 'search_layout_unrecognized', 'search_challenge', 'search_response_over_limit',
+    'unsupported_search_type', 'unsupported_source_type', 'tool_output_limit'];
+  const errors = [
+    ...owned.map((code) => [new Error(code, { cause: new Error(secret) }), code]),
+    [new Error(`search_challenge: ${secret}`), 'other'],
+    [Object.assign(new Error(secret), { code: 'search_challenge' }), 'other'],
+    [{ message: 'search_challenge', cause: secret }, 'other'],
+    [Object.defineProperty(new Error(), 'message', { get() { throw new Error(secret); } }), 'other'],
+  ];
+  for (const [error, code] of errors) {
+    let calls = 0;
+    const { runtime, trace } = fixture([{ ...searchStep, args: { query: secret } }]);
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter({ search: async () => { calls++; throw error; } }) });
+    assert.deepEqual(result.firstToolFailure, { tool: 'research_search', stage: 'adapter', code });
+    assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_failure');
+    assert.equal(result.modelCalls, 1); assert.equal(result.toolCalls, 1); assert.equal(result.toolOutputBytes, 0);
+    assert.deepEqual(result.sources, []); assert.equal(trace.length, 1); assert.equal(calls, 1);
+    assert.equal(JSON.stringify(result).includes(secret), false);
+  }
+});
+
+test('SDK validation and unknown-tool rejection retain only fixed lifecycle enums, not argument/error text', async () => {
+  const secret = 'synthetic-secret-sdk-arguments-or-tool-name';
+  for (const [tool, args, expectedTool] of [
+    ['research_search', { query: { [secret]: secret } }, 'research_search'],
+    ['research_fetch', { contains: secret }, 'research_fetch'],
+    [secret, { query: secret }, 'other'],
+  ]) {
+    let calls = 0;
+    const { runtime, trace } = fixture([{ tool, args }, { text: 'No inspected source.' }]);
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter({
+      search: async () => { calls++; return []; }, fetch: async () => { calls++; },
+    }) });
+    assert.deepEqual(result.firstToolFailure, { tool: expectedTool, stage: 'sdk_start', code: 'sdk_rejected' });
+    assert.equal(result.status, 'incomplete'); assert.equal(result.reason, 'missing_successful_search');
+    assert.equal(result.modelCalls, 2); assert.equal(result.toolCalls, 1); assert.equal(result.toolOutputBytes, 0);
+    assert.deepEqual(result.sources, []); assert.equal(trace.length, 2); assert.equal(calls, 0);
+    assert.equal(JSON.stringify(result).includes(secret), false);
+  }
+});
+
+test('only the first failure survives later SDK and execute failures without added dispatch', async () => {
+  const { runtime, trace } = fixture([{ ...searchStep, args: {} }, { tool: 'unowned-synthetic-secret', args: {} }, fetchStep]);
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter() });
+  assert.deepEqual(result.firstToolFailure, { tool: 'research_search', stage: 'sdk_start', code: 'sdk_rejected' });
+  assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_failure');
+  assert.equal(result.modelCalls, 3); assert.equal(result.toolCalls, 3); assert.equal(result.toolOutputBytes, 0);
+  assert.deepEqual(result.sources, []); assert.equal(trace.length, 3);
+  assert.doesNotMatch(JSON.stringify(result), /unowned-synthetic-secret/);
+});
+
+test('encoding-limit failure is captured before terminal halt with unchanged accounting', async () => {
+  const { runtime, trace } = fixture(normalSteps());
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter(), limits: { toolOutputBytes: 5 } });
+  assert.deepEqual(result.firstToolFailure, { tool: 'research_search', stage: 'output_encoding', code: 'tool_output_limit' });
+  assert.equal(result.status, 'incomplete'); assert.equal(result.reason, 'tool_output_limit');
+  assert.equal(result.modelCalls, 1); assert.equal(result.toolCalls, 1); assert.equal(result.toolOutputBytes, 0);
+  assert.deepEqual(result.sources, []); assert.equal(trace.length, 1);
+});
+
+test('a late uncooperative adapter cannot change the immutable first-failure terminal snapshot', async () => {
+  let release;
+  const late = new Promise((resolve) => { release = resolve; });
+  const { runtime, trace } = fixture([searchStep]);
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime,
+    adapter: adapter({ search: async () => late }), limits: { toolTimeoutMs: 15 } });
+  assert.deepEqual(result.firstToolFailure, { tool: 'research_search', stage: 'adapter', code: 'other' });
+  assert.equal(result.status, 'incomplete'); assert.equal(result.reason, 'tool_timeout');
+  assert.equal(result.modelCalls, 1); assert.equal(result.toolCalls, 1); assert.equal(result.toolOutputBytes, 0);
+  assert.deepEqual(result.sources, []); assert.equal(trace.length, 1);
+  assert.throws(() => { result.firstToolFailure.code = 'changed'; }, TypeError);
+  const snapshot = JSON.stringify(result);
+  release([{ url: 'https://synthetic-secret-late.invalid/', title: 'synthetic-secret-late', snippet: '' }]);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(JSON.stringify(result), snapshot); assert.equal(trace.length, 1);
 });
 
 test('tool errors terminate without trying another model or echoing provider errors', async () => {

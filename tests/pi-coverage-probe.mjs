@@ -1,4 +1,4 @@
-// Actual installed Pi loader + MCP adapter, fresh sessions, fixture-only. NO model prompt.
+// Actual installed Pi loader + MCP adapter, fresh sessions, fixture-only. NO live model/provider.
 // Scripted main-Pi decisions and simulated TUI consent are NOT live LLM/human proof.
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
@@ -64,8 +64,8 @@ try {
     assert.ok(proxy && coverage, 'actual installed loader registered both tools');
     return { session, proxy, coverage };
   }
-  async function close(session) {
-    assert.equal(session.messages.length, 0, 'no model prompt was issued');
+  async function close(session, scriptedLifecycle = false) {
+    if (!scriptedLifecycle) assert.equal(session.messages.length, 0, 'no model prompt was issued');
     await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' });
     session.dispose(); sessions.delete(session);
   }
@@ -77,7 +77,8 @@ try {
   const first = await host('tui', true);
   for (const id of ['orchard-water', 'orchard-alternative']) {
     const body = `# ${id}\nCompare two short drip cycles for sandy orchard soil [soil].\n` +
-      'Prior scope: small orchard only.\n'.repeat(4) + '\n[soil]: https://example.org/soil\n';
+      'Prior scope: small orchard only.\n'.repeat(4) + '\n[soil]: https://example.org/soil\n' +
+      (id === 'orchard-alternative' ? '\n## Correction\nThe old estimate is wrong [soil]; use orchard-water instead.\n' : '');
     const proposal = payload(await first.proxy.execute('fixture-import', { tool: 'research_import_save_research_draft', args: {
       text: body, metadata: { ...metadata(id), researched_at: '2020-02-03', last_improved_at: '2021-04-05', title: 'Orchard comparison \u202e metadata', warnings: ['Historical imported evidence; not freshly verified.'] },
     } })).proposal;
@@ -153,6 +154,104 @@ try {
   const noMatch = payload(await unavailable.coverage.execute('decide', { action: 'decide', outcome: 'no_useful_match', usefulIds: [], gaps: [], reason: 'Controlled negative applicability judgment; no new research was authorized or dispatched.' }));
   assert.equal(noMatch.rerank.method, 'local'); assert.match(noMatch.rerank.reason, /failed, unavailable or unsupported/);
   await close(unavailable.session);
+  // Drive the installed agent/session queue and event bridge with a scripted stream boundary.
+  // No provider, authentication or model is used. Unlike hand-emitting extension events,
+  // actual assistant/tool events and queued user delivery run through the SDK's agent loop.
+  const lifecycleModes = ['normal', 'steer', 'followUp'];
+  for (const mode of lifecycleModes) {
+    const h = await host('tui', true), { agent } = h.session;
+    agent.getApiKey = async () => undefined;
+    const invoke = input => h.coverage.execute('scripted-lifecycle', input);
+    const assess = { action: 'decide', outcome: 'no_useful_match', usefulIds: [], gaps: [], reason: 'Scripted applicability only.' };
+    const questionA = `${mode}: original orchard request`, questionB = `${mode}: unrelated quantum request`;
+    let stage = 0, oldCursor, oldWarning, oldCandidate, oldEvent, scriptError;
+    const permissionCount = () => reviews.filter(r => /TypeSafe/.test(r.title)).length;
+    const beforePermissions = permissionCount();
+    const scriptedStream = async () => {
+      let content = [{ type: 'text', text: 'Scripted assistant, not model output.' }];
+      if (stage === 0) {
+        const found = payload(await invoke({ ...lookupInput, question: questionA }));
+        oldCandidate = found.candidates[0];
+        const page = payload(await invoke({ action: 'read', read: { reportId: oldCandidate.id, expectedRevision: oldCandidate.revision } }));
+        oldCursor = page.continuation;
+        assert.ok(oldCursor?.offset > 0);
+        oldWarning = found.candidates.find(c => c.warningContext)?.warningContext.read;
+        assert.ok(oldWarning);
+        const warning = payload(await invoke({ action: 'read', read: oldWarning }));
+        assert.equal(warning.pageType, 'warning_context');
+        assert.match(warning.notices[0].text, /old estimate is wrong/);
+        assert.equal(warning.citations[0].target, 'https://example.org/soil');
+        assert.equal(warning.warningContext.contextOutstanding, true);
+        const plan = payload(await invoke({ action: 'rerank', ids: found.candidates.map(c => c.id), reason: 'Scripted ambiguous relevance.' }));
+        assert.equal(permissionCount(), beforePermissions + 1);
+        const ranked = [...plan.mcp.args.candidates].reverse().map((c, i) => ({ ...c, rank: i + 1, relevance: 0.9 - i * 0.1 }));
+        oldEvent = { type: 'tool_result', toolName: 'mcp', toolCallId: 'scripted-jev', input: plan.mcp, isError: false,
+          content: [], details: { mode: 'call', server: 'jev', tool: 'jev_rerank', mcpResult: { content: [{ type: 'text', text: JSON.stringify({
+            tool: 'jev_rerank', provider: 'fixture', model: 'fixture-only', query: plan.mcp.args.query,
+            summary: { candidates: ranked.length, returned: ranked.length }, ranked, usage: { input_tokens: 1, output_tokens: 1 },
+          }) }] } } };
+        await h.session.extensionRunner.emitToolResult(oldEvent);
+        // A real toolResult lifecycle must not reset the assessment between assistant turns.
+        content = [{ type: 'toolCall', id: 'scripted-assessment', name: 'research_coverage', arguments: assess }];
+      } else if (stage === 1) {
+        const toolResult = h.session.messages.find(m => m.role === 'toolResult' && m.toolCallId === 'scripted-assessment');
+        assert.ok(toolResult && !toolResult.isError);
+        const result = payload(toolResult);
+        assert.equal(result.question, questionA);
+        assert.equal(result.rerank.method, 'existing_jev');
+        if (mode !== 'normal') await h.session[mode](questionB);
+        assert.equal(payload(await invoke(assess)).question, questionA, 'queueing alone must not reset current tools');
+      } else if (stage === 2) {
+        // This runs only AFTER the actual new user message has been delivered.
+        await assert.rejects(invoke(assess), /invalid_input/, `${mode}: old assessment must be gone`);
+        await assert.rejects(invoke({ action: 'read', read: oldCursor }), /invalid_input/);
+        await assert.rejects(invoke({ action: 'read', read: oldWarning }), /invalid_input/);
+        const found = payload(await invoke({ ...lookupInput, question: questionB, query: 'quantum entanglement' }));
+        assert.equal(found.status, 'empty');
+        await assert.rejects(invoke({ action: 'read', read: oldWarning }), /invalid_input/, 'empty new shortlist cannot inherit issued warning pointers');
+        await assert.rejects(invoke({ action: 'read', read: { reportId: oldCandidate.id, expectedRevision: oldCandidate.revision } }), /invalid_input/);
+        await h.session.extensionRunner.emitToolResult(oldEvent);
+        const result = payload(await invoke(assess));
+        assert.equal(result.question, questionB);
+        assert.equal(result.rerank.method, 'local', 'old pending/approved result must not enter the new request');
+        assert.deepEqual(result.evidence, []);
+      } else if (stage === 3) {
+        await assert.rejects(invoke(assess), /invalid_input/, 'ordinary subsequent request also resets');
+        await assert.rejects(invoke({ action: 'read', read: oldWarning }), /invalid_input/);
+        const found = payload(await invoke({ ...lookupInput, question: 'Third request with the same shortlist' }));
+        await assert.rejects(invoke({ action: 'read', read: oldCursor }), /invalid_input/, 'rediscovery does not reissue old continuations');
+        await h.session.extensionRunner.emitToolResult(oldEvent);
+        assert.equal(payload(await invoke(assess)).rerank.method, 'local');
+        const plan = payload(await invoke({ action: 'rerank', ids: found.candidates.map(c => c.id), reason: 'Fresh consent for this request.' }));
+        assert.ok(plan.mcp);
+        assert.equal(permissionCount(), beforePermissions + 2, 'identical payload requires fresh request permission');
+      } else assert.fail('unexpected scripted model turn');
+      stage++;
+      const message = { role: 'assistant', content, api: 'offline-fixture', provider: 'fixture', model: 'no-model',
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: content[0].type === 'toolCall' ? 'toolUse' : 'stop', timestamp: Date.now() };
+      return { async *[Symbol.asyncIterator]() { yield { type: 'done', reason: message.stopReason, message }; }, result: async () => message };
+    };
+    // The agent converts stream exceptions into error messages; retain assertion failures for the probe.
+    agent.streamFunction = async () => {
+      try { return await scriptedStream(); } catch (error) { scriptError = error; throw error; }
+    };
+    const ordinaryRequest = async text => {
+      // Mirror normal prompt preflight without model/auth preflight or a provider call.
+      await h.session.extensionRunner.emitBeforeAgentStart(text, undefined, agent.state.systemPrompt);
+      await agent.prompt({ role: 'user', content: [{ type: 'text', text }], timestamp: Date.now() });
+    };
+    await ordinaryRequest(questionA);
+    if (mode === 'normal') await ordinaryRequest(questionB);
+    assert.ifError(scriptError);
+    assert.equal(stage, 3, `${mode}: queued request was actually delivered`);
+    await ordinaryRequest('Third ordinary user request');
+    assert.ifError(scriptError);
+    assert.equal(stage, 4);
+    assert.deepEqual(h.session.messages.filter(m => m.role === 'user').map(m => m.content[0].text),
+      [questionA, questionB, 'Third ordinary user request']);
+    await close(h.session, true);
+  }
   assert.deepEqual(forbiddenCalls, [], 'no hidden model/source-fetch/Git subprocess dispatch');
   assert.equal(await fs.readFile(callLog, 'utf8'), acceptedCallsBefore, 'no extra acceptance dispatched');
   assert.deepEqual(await fs.readFile(join(archiveRoot, 'INDEX.json')), catalogueBefore);
@@ -170,7 +269,7 @@ try {
   await close(failed.session);
   console.log(JSON.stringify({ actualPiLoader: true, installedAdapter: true, crossSessionReuse: true, visibleRevision: c.revision,
     controlledCoveredDecision: true, readPages, maxVisibleBytes, localFallbackWithoutJev: true, actualNormalMcpUnavailableFallback: true,
-    actualSelectorRendered: true, scriptedDecisionsNotLiveLlmProof: true, noModelPrompt: true, forbiddenHostDispatches: forbiddenCalls.length,
+    actualSelectorRendered: true, scriptedDecisionsNotLiveLlmProof: true, lifecycleModes, noLiveModelCall: true, forbiddenHostDispatches: forbiddenCalls.length,
     extraAcceptanceDispatches: 0, archiveUnchangedByCoverage: true, noSourceRefreshOrResearchOrPublication: true }));
 } finally {
   restoreTripwires();

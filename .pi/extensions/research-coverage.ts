@@ -13,13 +13,14 @@ export default function (pi: ExtensionAPI) {
   let workflow: ReturnType<typeof createCoverageWorkflow> | undefined;
   let currentSignal: AbortSignal | undefined;
   // Main Pi chooses the semantic trigger through the registered workflow guideline.
-  // A fresh user request/session/tree branch gets fresh local bounds and no reused permissions.
-  const reset = () => { workflow = undefined; };
+  // Reset on delivered user messages, not queue input: the current tool sequence
+  // must finish first. Steering/follow-ups do not emit before_agent_start.
+  const reset = () => { workflow = undefined; currentSignal = undefined; };
   pi.on('session_start', reset);
   pi.on('session_shutdown', reset);
   pi.on('session_tree', reset);
   pi.on('session_compact', reset);
-  pi.on('before_agent_start', reset);
+  pi.on('message_start', event => { if (event.message.role === 'user') reset(); });
   pi.on('tool_result', event => { workflow?.observe(event); });
   pi.registerTool({
     name: 'research_coverage', label: 'Archive coverage',

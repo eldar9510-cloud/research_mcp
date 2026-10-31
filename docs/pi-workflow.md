@@ -32,7 +32,12 @@ even for an empty directory. Inspect first, then explicitly request
 
 ## Read-only decision contract
 
-`research_coverage` is sequential and request/session/branch-local. Its actions:
+`research_coverage` is sequential and request/session/branch-local. A delivered
+user message resets the assessment, shortlist, read cursors, ranking and payload
+permission, including steering/follow-up requests (which bypass
+`before_agent_start`). Queueing alone does not interrupt the active tool sequence;
+assistant/tool messages do not reset it. This lifecycle boundary does not classify
+or intercept request semantics. Its actions:
 
 1. `lookup {purpose,question,query}`: semantic purpose is `investigation`,
    `comparison` or `research_recommendation`; the question includes scope and
@@ -46,8 +51,10 @@ even for an empty directory. Inspect first, then explicitly request
    `expectedRevision`, optional byte `selection`/`pageBytes`. It returns the
    existing exact-revision page, full metadata, warnings, citations and
    continuation unchanged. Call again with **the whole continuation** inside
-   `read`, not reconstructed offsets. Follow required citation `read` selections
-   too. At most three reports, six selections and twelve read pages per request.
+   `read`, not reconstructed offsets. Pass an issued `warningContext.read` or
+   citation `read` object unchanged too; warning cursors are accepted only when
+   issued in the current assessment, not fabricated or inherited across requests.
+   These reads still consume the three-report/six-selection/twelve-page budgets.
 5. `decide {outcome,reason,usefulIds,gaps}`: main Pi supplies its applicability
    reasoning, useful report IDs and explicit gaps. A shared topic or ranking is
    not evidence of coverage. The helper checks that claimed useful evidence was
@@ -153,6 +160,11 @@ rediscovers and reads them in fresh sessions through visible text only. It check
 multi-page revision-bound reuse, installed selector rendering, normal MCP
 unconfigured-Jev fallback and stop-on-catalogue-error. Main-Pi decisions and TUI
 consent are controlled test inputs, not a live LLM or real-human demonstration.
+The installed agent loop also delivers scripted normal, steering and follow-up
+user requests, verifying request resets, fresh payload consent, rejection of old
+read pointers and preservation of ordinary assistant/tool sequences. Its stream
+boundary is synthetic: no live model or authentication is used. Raw lookup-issued
+warning pointers are exercised unchanged, retaining exact notices and citations.
 No live Jev/model/provider/web call is made. Run the existing
 `tests/pi-host-probe.mjs` and `tests/pi-publication-probe.mjs` too; they retain
 approval/publication regression coverage. Parent review, any authorized live Jev

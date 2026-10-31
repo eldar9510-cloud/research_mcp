@@ -27,7 +27,7 @@ function visible(data) {
 // permitRerank is a host decision about the exact transmitted metadata; a tool boolean is not consent.
 export function createCoverageWorkflow({ search, read, permitRerank = async () => false }) {
   let question, query, searches = 0, pages = 0, stopped, uncertain = false, busy = false;
-  const candidates = new Map(), sequences = [], continuations = new Map(), references = new Map();
+  const candidates = new Map(), sequences = [], continuations = new Map(), contextReads = new Set();
   let rerank = { method: 'local', reason: 'Jev not requested; local shortlist retained.' };
   let pending, rerankAttempted = false;
   const stop = code => {
@@ -51,6 +51,7 @@ export function createCoverageWorkflow({ search, read, permitRerank = async () =
     for (const c of data.candidates) {
       if (candidates.has(c.id) && candidates.get(c.id).revision !== c.revision) return stop('revision_conflict');
       candidates.set(c.id, c);
+      if (c.warningContext?.read) contextReads.add(key(c.warningContext.read));
     }
     // A reformulation invalidates any older ranking; no external call or automatic retry.
     pending = undefined; rerankAttempted = false;
@@ -63,9 +64,10 @@ export function createCoverageWorkflow({ search, read, permitRerank = async () =
     if (!candidate || args.expectedRevision !== candidate.revision) invalid();
     const cursor = key(args);
     let sequence = continuations.get(cursor);
-    const reference = references.has(cursor);
+    // Only exact context pointers issued by this request may start with cursors.
+    const issuedContext = contextReads.has(cursor);
     if (!sequence) {
-      if (!only(args, ['reportId', 'expectedRevision', 'selection', 'pageBytes']) && !reference) invalid();
+      if (!only(args, ['reportId', 'expectedRevision', 'selection', 'pageBytes']) && !issuedContext) invalid();
       if (sequences.length >= 6 || new Set([...sequences.map(s => s.reportId), args.reportId]).size > 3) {
         uncertain = true;
         return visible({ outcome: 'partial', uncertainty: 'Selected-read bound exhausted (three reports/six selections). Evidence is not fully qualified.' });
@@ -91,8 +93,9 @@ export function createCoverageWorkflow({ search, read, permitRerank = async () =
     sequence.selection = page.selection;
     for (const citation of page.citations) {
       sequence.citations.set(citation.label, citation);
-      if (citation.read) references.set(key(citation.read), citation.read);
+      if (citation.read) contextReads.add(key(citation.read));
     }
+    if (page.warningContext?.read) contextReads.add(key(page.warningContext.read));
     if (page.continuation) continuations.set(key(page.continuation), sequence);
     // The full page is returned unchanged, including all warnings, citations and the ENTIRE continuation.
     return result;

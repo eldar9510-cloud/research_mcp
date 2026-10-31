@@ -189,6 +189,48 @@ test('later correction, successor, dates and unresolved imported citations survi
   assert.equal(payload(await s.workflow.run(decision())).outcome, 'partial');
 });
 
+test('lookup-issued warning read is usable unchanged; forged cursors cannot skip corrections or cross reports', async t => {
+  const body = '# Evidence\nTwo drip cycles [soil].\n\n## Correction\nThe old estimate is wrong [soil]; use orchard-successor instead.\n\n[soil]: https://example.org/soil\n';
+  const s = await setup(t, { body });
+  await s.add('orchard-alternative', 'Uncorrected alternative drip evidence.\n');
+  const found = await s.lookup(), c = found.candidates.find(c => c.id === 'orchard-water');
+  const pointer = c.warningContext.read, original = structuredClone(pointer);
+  assert.deepEqual(pointer, { reportId: c.id, expectedRevision: c.revision, warningOffset: 0 });
+  for (const forged of [{ ...pointer, warningOffset: 1 }, { ...pointer, offset: 0 }, { ...pointer, referenceOffset: 0 },
+    { ...pointer, pageBytes: 128 }, { ...pointer, reportId: 'orchard-alternative', expectedRevision: found.candidates.find(c => c.id === 'orchard-alternative').revision },
+    { ...pointer, expectedRevision: '0'.repeat(64) }]) {
+    await assert.rejects(s.workflow.run({ action: 'read', read: forged }), /invalid_input/);
+  }
+  const first = payload(await s.workflow.run({ action: 'read', read: pointer }));
+  assert.deepEqual(pointer, original, 'caller can pass the raw returned object');
+  assert.deepEqual(s.calls.at(-1).args, original);
+  assert.equal(first.pageType, 'warning_context');
+  assert.match(first.notices[0].text, /old estimate is wrong/);
+  assert.equal(first.citations.find(c => c.label === 'soil').target, 'https://example.org/soil');
+  assert.equal(first.revision, c.revision);
+  assert.equal(first.warningContext.contextOutstanding, true);
+  assert.deepEqual(first.warningContext.read, pointer);
+  await assert.rejects(s.workflow.run({ action: 'read', read: { ...first.continuation, warningOffset: 999 } }), /invalid_input/);
+  const last = payload(await s.workflow.run({ action: 'read', read: first.continuation }));
+  assert.equal(last.continuation, null);
+  assert.match(last.content.text, /Two drip cycles/);
+  assert.equal(payload(await s.workflow.run(decision())).outcome, 'partial', 'stateless outstanding context stays conservative');
+  for (let i = 1; i < 6; i++) await s.workflow.run({ action: 'read', read: pointer });
+  const bound = payload(await s.workflow.run({ action: 'read', read: pointer }));
+  assert.match(bound.uncertainty, /six selections/);
+  assert.equal(s.calls.filter(c => c.action === 'read').length, 7, 'context reads still consume selection/page budgets');
+});
+
+test('an issued warning pointer never bypasses an unavailable exact revision', async t => {
+  const s = await setup(t, { body: 'Drip evidence.\n\n## Correction\nThe old estimate is wrong.\n' });
+  const pointer = (await s.lookup()).candidates[0].warningContext.read;
+  await fs.appendFile(join(s.r.archiveRoot, 'reports/orchard-water.md'), 'changed revision');
+  const result = payload(await s.workflow.run({ action: 'read', read: pointer }));
+  assert.equal(result.outcome, 'lookup_error');
+  assert.equal(result.error.code, 'revision_conflict');
+  assert.equal(payload(await s.workflow.run(decision())).outcome, 'lookup_error');
+});
+
 test('even completed paged-warning continuations cannot be called fully read while contextOutstanding remains true', async t => {
   const body = '# Evidence\nDated drip choice.\n\n## Correction\nOld finding needs correction.\n' + '\x01'.repeat(7000) + '\n\n## End\n';
   const s = await setup(t, { body });

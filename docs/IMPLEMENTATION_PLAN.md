@@ -63,9 +63,9 @@ A worker's permission to commit a local candidate, if granted, never implies per
 - [x] Complete the plan review and documentation checks recorded in section 10. Recheck affected results if the plan, scope or runtime configuration changes before execution.
 - [x] Obtain the user's instruction to begin implementation and settle the Git permissions above.
 - [x] Refresh all issue bodies, comments, statuses and native blockers; inspect the repository and any existing worktrees/runs.
-- [ ] Make this plan available to every worktree: either through an approved documentation commit or an explicit read-only path in the handoff. Git worktrees do not inherit uncommitted files from the coordinator checkout.
-- [ ] Choose one coordinator-owned integration branch. A local `implementation/v0` branch is a reasonable default; do not create a second permanent integration system.
-- [ ] Confirm a writable, separate local work area for test reports, proposals, temporary Git remotes and run artifacts.
+- [x] Make this plan available to every worktree: locally committed at `e09495f`, inherited by initial isolated #1/#2 worktrees. Git worktrees do not inherit uncommitted files from the coordinator checkout.
+- [x] Choose one coordinator-owned integration branch: `implementation/v0`.
+- [x] Confirm a writable, separate local work area for test reports, proposals, temporary Git remotes and run artifacts: ignored `.research-local/` in each worktree; coordinator dispatch handoff in `.research-local/execution/`.
 
 The execution request authorizes committing this plan locally, but not pushing it.
 

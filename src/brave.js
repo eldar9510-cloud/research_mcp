@@ -304,6 +304,9 @@ export function createBraveAdapter({ token, fetchImpl = globalThis.fetch, lookup
       const found = [];
       for (const item of data.web.results) {
         if (!item || typeof item.url !== 'string' || typeof item.title !== 'string' || typeof item.description !== 'string') reject('search_response_invalid');
+        // JSON escapes are decoded now. Refuse the response, never sanitize a
+        // reflected credential into apparently trustworthy search evidence.
+        if ([item.url, item.title, item.description].some(value => value.includes(token))) reject('search_response_invalid');
         let safe;
         try { safe = sourceUrl(item.url); } catch { continue; }
         if (found.length < limits.searchResults && !found.some(hit => hit.url === safe))
@@ -331,6 +334,9 @@ export function createBraveAdapter({ token, fetchImpl = globalThis.fetch, lookup
       catch { reject('unsupported_source_type'); }
       if (body.includes(token)) reject('tool_invalid_output');
       const extracted = /^text\/html/i.test(response.type) ? visibleHtml(body) : { text: body.replace(/\s+/g, ' ').trim(), title: url };
+      // Screen the actual decoded/cleaned fields before passage/title clipping,
+      // model output or durable evidence; raw HTML may encode or split a token.
+      if ([extracted.text, extracted.title].some(value => value.includes(token))) reject('tool_invalid_output');
       const text = extracted.text;
       if (!text) reject('empty_source');
       if (contains !== undefined) {

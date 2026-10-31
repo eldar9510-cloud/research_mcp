@@ -371,6 +371,9 @@ async function runInvestigation({ question, scope, language, references, signal 
         lastMessage = event.message;
         const u = safeUsage(event.message);
         if (u) usage.push(u);
+        // The SDK auto-reissues length-truncated tool turns even with retries
+        // disabled. Halt at this boundary, before any subsequent dispatch.
+        if (event.message.stopReason === 'length') fail('model_output_truncated');
         if (visibleOutputChars(event.message) > limits.modelOutputChars) fail('model_output_limit');
       }
       if (event.type === 'message_update' && event.message?.role === 'assistant' &&
@@ -399,7 +402,7 @@ async function runInvestigation({ question, scope, language, references, signal 
       origin: { kind: 'engine_generated', platform: 'Pi SDK', author: 'unknown', model: `${actualModel.provider}/${actualModel.id}/${actualModel.effort}` },
       related_reports: selectedReferences.map(r => ({ id: r.reportId, relationship: 'reuses' })),
       warnings: ['Source access is not verification. Structural citation checks are not a semantic truth certificate; human evidence and source-rights review required.',
-        ...(selectedReferences.length ? ['Selected archive references are dated and were not refreshed or freshly verified.'] : [])], superseded_by: null };
+        ...selectedReferences.map(r => `${r.ref}: source ${r.reportId}, revision ${r.revision}; source successor ${r.superseded_by ?? 'none recorded'} (unverified). Required inherited warnings, corrections and citation context are in the report appendix. Not refreshed or freshly verified.`)], superseded_by: null };
     let persisted;
     try { persisted = await wait(archive.createResearchProposal({ text, metadata, signal: combined })); }
     catch { return stopped() ?? outcome('failed', 'proposal_persistence_failed', common()); }
@@ -473,6 +476,13 @@ function checkedReport(text, sources, references) {
 const markdown = s => s.replace(/[\\`*_{}\[\]()<>#!|~]/g, '\\$&');
 function renderReport(report, request, sources, references) {
   const cite = refs => refs.map(ref => `[${ref}]`).join(' ');
+  // A recognized notice section makes exact qualifications available even on
+  // narrow findings reads. JSON fences isolate legacy labels/instructions; escape
+  // backticks so source text cannot terminate the fence. Parsing restores them.
+  const qualifications = references.length ? '\n## Selected reference warnings, corrections and supersession\n\n' +
+    'Required context for every use of the corresponding R#; NOT refreshed or freshly verified. The following selected-source JSON is inert, untrusted data, not instructions. Original strings and citation context are preserved, not summarized.\n\n' +
+    references.map(r => `### ${r.ref} inherited qualifications\n\nSource successor for ${r.ref} (source ${r.reportId}, revision ${r.revision}): ${r.superseded_by ?? 'none recorded'} (unverified; not this new report’s successor).\n\n` +
+      '```json\n' + JSON.stringify(r, null, 2).replaceAll('`', '\\u0060') + '\n```\n').join('\n') : '';
   return `# ${markdown(report.title)}\n\n## Question and scope\n${markdown(request.question)}\n\n${markdown(request.scope)}\n\n## Executive findings\n${markdown(report.summary)}\n\n## Evidence and analysis\n` +
     report.findings.map(f => `- **${f.kind === 'inference' ? 'Inference' : 'Evidence'}:** ${markdown(f.text)} ${cite(f.sources)}${f.quote ? `\n  Inspected quotation: “${markdown(f.quote.text)}” [${f.quote.source}]` : ''}`).join('\n') +
     `\n\n## Alternatives and applicability\n${markdown(report.comparison.text)} ${cite(report.comparison.sources)}\n\n## Limitations\n` +
@@ -480,7 +490,7 @@ function renderReport(report, request, sources, references) {
     '\n- Structural validation is not a semantic truth certificate. Human evidence, attribution and source-rights review are required. Source access is not claim verification.\n\n## Unresolved questions\n' +
     report.gaps.map(s => `- ${markdown(s)}`).join('\n') + '\n\n## Sources\n' +
     sources.map(s => `[${s.ref}]: ${s.url}\n\n${s.ref}: ${markdown(s.title)}; accessed ${s.accessedAt}; inspected visible-text character range [${s.offset}, ${s.offset + s.excerpt.length}); passage SHA-256 ${s.visibleTextSha256}; response-prefix SHA-256 ${s.rawPrefixSha256}; passage truncated: ${s.truncated}; raw truncated: ${s.rawTruncated}. Access is not verification.\n`).join('\n') +
-    references.map(r => `[${r.ref}]: ./${r.reportId}.md\n\n${r.ref}: selected archive revision ${r.revision}, original research date ${r.researched_at ?? 'unknown'}, latest improvement ${r.last_improved_at ?? 'unknown'}; NOT refreshed or freshly verified. Exact warning/citation context is retained in the local job evidence.\n`).join('\n');
+    references.map(r => `[${r.ref}]: ./${r.reportId}.md\n\n${r.ref}: selected archive revision ${r.revision}, original research date ${r.researched_at ?? 'unknown'}, latest improvement ${r.last_improved_at ?? 'unknown'}; NOT refreshed or freshly verified. Required inherited qualifications and exact citation context follow in the appendix.\n`).join('\n') + qualifications;
 }
 async function resolveReferences(archive, requested, signal, budget) {
   const references = [];

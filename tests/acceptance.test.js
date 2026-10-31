@@ -200,6 +200,53 @@ test('already-staged identical content cannot be accepted twice under another re
   assert.deepEqual(await fs.readdir(join(r.archiveRoot, 'reports')), ['first.md']);
 });
 
+test('prefix-related report IDs accept in either order and rebuild deterministically without masking invalid/stale catalogues', async t => {
+  for (const order of [['orchard', 'orchard-notes'], ['orchard-notes', 'orchard']]) {
+    const r = await roots(t);
+    const a = createArchive({ ...r, maxReadBytes: 128, maxSearchResults: 2 });
+    const bodies = new Map(order.map(id => [id, `${id} report\n`.repeat(40)]));
+    for (const [i, id] of order.entries()) {
+      const { review } = await draftAndReview(a, bodies.get(id), id);
+      await a.acceptProposal(acceptance(review));
+      assert.equal((await a.searchReports({ query: 'watering' })).candidates.length, i + 1);
+    }
+    const fresh = createArchive({ ...r, maxReadBytes: 128, maxSearchResults: 2 });
+    const found = await fresh.searchReports({ query: 'watering', limit: 1 });
+    assert.equal(found.status, 'matches');
+    assert.deepEqual(found.candidates.map(x => x.id), ['orchard']);
+    assert.equal(found.nextOffset, 1);
+    const second = await fresh.searchReports({ query: 'watering', limit: 1, offset: found.nextOffset });
+    assert.deepEqual(second.candidates.map(x => x.id), ['orchard-notes']);
+    assert.equal(second.nextOffset, null);
+    for (const candidate of [...found.candidates, ...second.candidates]) {
+      let page = await fresh.readAccepted({ reportId: candidate.id, expectedRevision: candidate.revision });
+      let text = '';
+      while (true) {
+        text += page.content.text;
+        if (!page.continuation) break;
+        page = await fresh.readAccepted(page.continuation);
+      }
+      assert.equal(text, bodies.get(candidate.id));
+    }
+    const indexPath = join(r.archiveRoot, 'INDEX.json');
+    const original = await fs.readFile(indexPath);
+    assert.deepEqual(JSON.parse(original).entries.map(x => x.id), ['orchard', 'orchard-notes']);
+    for (let i = 0; i < 3; i++) {
+      assert.equal((await fresh.rebuildCatalogue()).catalogueRevision, found.catalogueRevision);
+      assert.deepEqual(await fs.readFile(indexPath), original);
+      assert.equal((await fresh.searchReports({ query: 'watering' })).status, 'matches');
+    }
+    const malformed = JSON.parse(original);
+    malformed.entries.reverse();
+    await fs.writeFile(indexPath, JSON.stringify(malformed, null, 2) + '\n');
+    await assert.rejects(fresh.searchReports({ query: 'watering' }), code('catalogue_invalid'));
+    await fresh.rebuildCatalogue();
+    await fs.appendFile(join(r.archiveRoot, 'reports', 'orchard.md'), 'external edit');
+    await assert.rejects(fresh.searchReports({ query: 'watering' }), code('catalogue_stale'));
+    await assert.rejects(fresh.rebuildCatalogue(), code('catalogue_invalid'));
+  }
+});
+
 test('concurrent reviews of one catalogue cannot silently discard another accepted report', async t => {
   const r = await roots(t);
   const a = createArchive(r);

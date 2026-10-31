@@ -345,10 +345,12 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     catch (e) { if (e.code === 'invalid_input') fail('catalogue_invalid', 'Reports path is unsafe; inspect before rebuilding'); throw e; }
     try {
       if (!(await fs.stat(reports)).isDirectory()) fail('catalogue_invalid', 'Reports location is not a directory');
-      const names = (await fs.readdir(reports)).sort();
+      const names = await fs.readdir(reports);
       if (names.length > MAX_PROPOSALS || names.some(name => !/^[a-z0-9]+(?:-[a-z0-9]+)*\.md$/.test(name) || name.length > 103))
         fail('catalogue_stale', 'Unexpected file or excess reports; inspect reports/ before rebuilding');
-      return names;
+      // Index entries and search ties compare bare IDs; sorting full filenames
+      // instead would put orchard-notes.md before orchard.md ("-" < ".").
+      return names.sort((a, b) => a.slice(0, -3) < b.slice(0, -3) ? -1 : a.slice(0, -3) > b.slice(0, -3) ? 1 : 0);
     } catch (e) { if (e.code === 'ENOENT') return []; throw e; }
   }
   function validEntry(e) {

@@ -2,7 +2,7 @@
 
 A reusable research library for Pi: find previous investigations, reuse what applies, improve them when requested, and publish reviewed results for future sessions.
 
-**Status: first implementation slice.** A local MCP stdio server imports finished Markdown/plain-text reports as **local unaccepted proposals** and reads them in bounded pages. See [docs/import.md](docs/import.md) for setup, the actual supported Pi MCP-adapter connection, record/tool contracts, tests and limitations. Search, acceptance, research, Git publication and automatic Pi workflow are not implemented.
+**Status: local import and acceptance slices.** The MCP stdio server imports finished Markdown/plain-text reports as **local unaccepted proposals**, then explicitly reviewed reports can be accepted **locally and unpublished** through the supported interactive Pi approval gate. A compact rebuildable catalogue supports bounded lexical discovery and revision-bound report reads across sessions. See [docs/import.md](docs/import.md) for the proposal contract and [docs/acceptance.md](docs/acceptance.md) for actual Pi setup, approval, search, recovery and tests. Research jobs, Git publication and automatic coverage workflows are not implemented.
 
 ## Planned workflow
 
@@ -10,7 +10,7 @@ A reusable research library for Pi: find previous investigations, reuse what app
 2. Read relevant report sections; use the existing Jev integration for optional relevance reranking.
 3. Reuse covered findings, offer targeted improvements for gaps, or propose new research.
 4. Run an explicitly authorized, bounded investigation with **Sol at maximum reasoning effort**, or import a finished report from another platform.
-5. Review the report or diff, then approve the commit and push.
+5. Review the report or diff, approve local acceptance, and later use one expanded review envelope for a future Git commit/push workflow (not implemented).
 
 Existing reports are not automatically improved or source-checked. Incomplete research stays local. The initial interface is **Pi only**; no website, accounts, or vector database is planned for v0.
 

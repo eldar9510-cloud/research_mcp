@@ -22,14 +22,18 @@ async function setup(t, options = {}) {
 
 test('prompt start reserves synchronously, busy never queues, status is compact and not falsely resolved', async t => {
   let release, calls = 0;
+  const entered = Promise.withResolvers();
   const pending = new Promise(resolve => { release = resolve; });
-  const s = await setup(t, { dependencies: async () => { calls++; return pending; } });
+  const s = await setup(t, { dependencies: async () => { calls++; entered.resolve(); return pending; } });
   const before = performance.now();
   const initial = s.research.start({ ...INPUT, limits: { wallMs: 500 } });
   assert(performance.now() - before < 100); assert.equal(calls, 0);
   assert.equal(initial.actualModel, null); assert.deepEqual(initial.requestedModel, MODEL);
   assert.throws(() => s.research.start(INPUT), /research_busy/);
-  await new Promise(resolve => setTimeout(resolve, 15));
+  // Observe entry, not a filesystem scheduling guess; the job's existing
+  // 500 ms deadline still fails this race if setup never begins.
+  assert.equal(await Promise.race([entered.promise.then(() => 'entered'),
+    terminal(s.research, initial).then(() => 'terminal')]), 'entered');
   assert.equal(calls, 1); assert.equal(s.research.get({ jobId: initial.jobId }).actualModel, null);
   release({ modelRuntime: s.f.runtime, adapter: adapter() });
   const done = await terminal(s.research, initial);

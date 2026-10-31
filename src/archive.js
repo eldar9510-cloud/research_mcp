@@ -100,18 +100,26 @@ const referenceLabel = value => value.trim().replace(/\s+/g, ' ').toLowerCase();
 // always address the untouched source, not a normalized Markdown rendering.
 function markdownLines(text) {
   let fence;
+  let paragraph = false;
   let byte = 0;
   const lines = [...text.matchAll(/[^\n]*(?:\n|$)/g)].filter(m => m[0].length).map(m => {
     const value = m[0];
     const syntax = m.index === 0 ? value.replace(/^\ufeff/, '') : value;
     const marker = /^ {0,3}(`{3,}|~{3,})(.*)/.exec(syntax);
-    let code = !!fence || /^(?: {4}|\t)/.test(syntax);
+    // Indented code cannot interrupt an open paragraph. Blank lines and
+    // standalone blocks below end it; fence lines are always code context.
+    let code = !!fence || (!paragraph && /^(?: {4}|\t)/.test(syntax));
     if (fence) {
       if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = undefined;
     } else if (marker && (marker[1][0] !== '`' || !marker[2].includes('`'))) {
       code = true;
       fence = marker[1];
     }
+    const blockBoundary = /^ {0,3}#{1,6}(?:[ \t]+|\r?\n?$)/.test(syntax) ||
+      (!paragraph && /^ {0,3}\[[^\]\n]{1,80}\]:/.test(syntax)) ||
+      /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})\r?\n?$/.test(syntax) ||
+      (paragraph && /^ {0,3}(?:=+|-+)[ \t]*\r?\n?$/.test(syntax));
+    paragraph = !code && !!syntax.trim() && !blockBoundary;
     const line = { value, syntax, index: m.index, end: m.index + value.length, byte, code };
     byte += Buffer.byteLength(value);
     return line;
@@ -171,7 +179,6 @@ function referenceDefinitions(text) {
 }
 function importantNotices(text) {
   const important = /\b(?:warnings?|caveats?|limitations?|corrections?|corrected|supersed(?:ed|es|ing)|errata|known errors?|replaced by)\b/i;
-  const paragraph = /^(?: {0,3})(?:(?:\*\*|__)?(?:warnings?|caveats?|limitations?|corrections?|errata|known errors?)(?:\*\*|__)?\s*[:.—-]|(?:this|the) report\b[^\n]*\b(?:corrected|superseded|replaced by)\b)/i;
   const lines = markdownLines(text);
   const notices = [];
   for (let i = 0; i < lines.length; i++) {
@@ -180,8 +187,12 @@ function importantNotices(text) {
     if (line.level && important.test((line.headingText ?? line.value).replace(/`[^`]*`/g, ''))) {
       while (i + 1 < lines.length && (!lines[i + 1].level || lines[i + 1].level > line.level)) i++;
     } else {
-      if (line.level || !paragraph.test(line.syntax)) continue;
+      if (line.level || !line.value.trim() || /^ {0,3}\[[^\]\n]{1,80}\]:/.test(line.syntax)) continue;
       while (i + 1 < lines.length && lines[i + 1].value.trim() && !lines[i + 1].level && !lines[i + 1].code) i++;
+      // Conservatively retain the whole paragraph, regardless of notice prefix,
+      // date or emphasis. Code examples alone must not trigger a notice.
+      const prose = text.slice(line.index, lines[i].end).replace(/(`+)([^\n]*?)\1(?!`)/g, '');
+      if (!important.test(prose)) continue;
     }
     const startChar = line.index;
     const endChar = lines[i].end;

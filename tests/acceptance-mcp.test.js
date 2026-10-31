@@ -31,6 +31,77 @@ async function connect(t, r, limit = 512) {
   return (name, args = {}) => client.callTool({ name, arguments: args }).then(visible);
 }
 
+test('ordinary explicit notices remain visible through MCP selection and accepted search context', { timeout: 30000 }, async t => {
+  const r = await roots(t);
+  const call = await connect(t, r);
+  const notices = [
+    'Superseded by [successor][next].\n',
+    'Correction (2026-01-02): the earlier estimate is wrong; use [successor][next] instead.\n',
+    '**This report has been superseded by [successor][next].**\n',
+  ];
+  for (const [index, notice] of notices.entries()) {
+    const findings = '# Findings\nEarlier estimate: 10 units.\n';
+    const text = notice + '\n' + findings + '\n[next]: https://example.org/corrected\n';
+    const id = `notice-${index}`;
+    const p = (await call('save_research_draft', { text, metadata: { ...metadata(id), warnings: [], superseded_by: null } })).proposal;
+    const selection = { startByte: Buffer.byteLength(notice + '\n'), endByte: Buffer.byteLength(notice + '\n' + findings) };
+    const check = page => {
+      assert.equal(page.content.text, findings);
+      assert.deepEqual(page.notices.map(n => n.text), [notice]);
+      assert.equal(page.citations.find(c => c.label === 'next')?.target, 'https://example.org/corrected');
+      assert.match(page.warningContext.successorContext[0].text, /\[successor\]\[next\]/);
+      assert.deepEqual(page.metadata.warnings, []);
+      assert.equal(page.metadata.superseded_by, null);
+    };
+    check(await call('read_research', { proposalId: p.proposalId, expectedRevision: p.revision, selection }));
+    const review = (await call('review_research_draft', { proposalId: p.proposalId })).review;
+    await call('accept_research_draft', { proposalId: review.proposalId, expectedRevision: review.expectedRevision,
+      expectedBaseRevision: review.expectedBaseRevision, expectedCatalogueRevision: review.expectedCatalogueRevision,
+      expectedReviewDigest: review.reviewDigest, acceptedAt: review.acceptedAt });
+    const found = (await call('search_research', { query: 'orchard' })).candidates.find(c => c.id === id);
+    assert.ok(found.warnings.some(w => w.code === 'body_notice'));
+    assert.match(found.warningContext.successorContext[0].text, /\[successor\]\[next\]/);
+    const context = await call('read_research', found.warningContext.read);
+    assert.equal(context.revision, found.revision);
+    assert.equal(context.notices[0].text, notice);
+    assert.equal(context.citations.find(c => c.label === 'next')?.target, 'https://example.org/corrected');
+    check(await call('read_research', { reportId: found.id, expectedRevision: found.revision, selection }));
+  }
+});
+
+test('MCP paragraph continuations keep evidence and missing-reference diagnostics without admitting code examples', { timeout: 30000 }, async t => {
+  const r = await roots(t);
+  const call = await connect(t, r);
+  const prefix = 'This analysis is supported by\n';
+  const continuation = '    [claim][real] and [claim][missing].\n';
+  const text = prefix + continuation + '\n[real]: https://example.org/evidence\n';
+  const p = (await call('save_research_draft', { text, metadata: metadata() })).proposal;
+  const check = page => {
+    assert.equal(page.citations.find(c => c.label === 'real')?.target, 'https://example.org/evidence');
+    assert.equal(page.citations.find(c => c.label === 'missing')?.status, 'unresolved');
+    assert.ok(page.warnings.some(w => w.code === 'unresolved_citation'));
+  };
+  check(p);
+  assert.equal(p.content.text, text);
+  const selection = { startByte: Buffer.byteLength(prefix), endByte: Buffer.byteLength(prefix + continuation) };
+  check(await call('read_research', { proposalId: p.proposalId, expectedRevision: p.revision, selection }));
+  const review = (await call('review_research_draft', { proposalId: p.proposalId })).review;
+  await call('accept_research_draft', { proposalId: review.proposalId, expectedRevision: review.expectedRevision,
+    expectedBaseRevision: review.expectedBaseRevision, expectedCatalogueRevision: review.expectedCatalogueRevision,
+    expectedReviewDigest: review.reviewDigest, acceptedAt: review.acceptedAt });
+  const found = (await call('search_research', { query: 'orchard' })).candidates[0];
+  assert.ok(found.warnings.some(w => w.code === 'unresolved_citation'));
+  const selected = await call('read_research', { reportId: found.id, expectedRevision: found.revision, selection });
+  check(selected);
+  assert.equal(selected.content.text, continuation);
+  const code = '# Findings\n    [claim][heading].\n\nA paragraph.\n\n    [claim][blank].\n\n' +
+    '```markdown\n[claim][fenced].\n```\n    [claim][after-fence].\n\n' +
+    'Details\n=======\n    [claim][setext].\n\n[support]: https://example.org/support\n    [claim][definition].\n';
+  const example = (await call('save_research_draft', { text: code, metadata: metadata('code-only-boundaries') })).proposal;
+  assert.deepEqual(example.citations, []);
+  assert.ok(!example.warnings.some(w => w.code === 'unresolved_citation'));
+});
+
 test('real MCP transport accepts reviewed bytes, restarts and discovers without manual path; errors never look like empty', { timeout: 30000 }, async t => {
   const r = await roots(t);
   const call = await connect(t, r);

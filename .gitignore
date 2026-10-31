@@ -1,6 +1,9 @@
 # Local proposals, incomplete research, transcripts, and temporary artifacts
 .research-local/
 
+# Pi MCP adapter project-local connection (may contain machine-specific paths)
+.mcp.json
+
 # Local secrets and authentication files
 .env
 .env.*

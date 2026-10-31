@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { types } from 'node:util';
 import { LIMITS, MODEL, runInvestigation, sourceUrl } from '../src/research.mjs';
 import { createDuckDuckGoRfcAdapter } from '../src/duckduckgo-rfc.mjs';
 import { ModelRuntime } from '@earendil-works/pi-coding-agent';
@@ -394,6 +395,73 @@ test('failure codes use exact owned literals only, never messages, causes, argum
     assert.deepEqual(result.sources, []); assert.equal(trace.length, 1); assert.equal(calls, 1);
     assert.equal(JSON.stringify(result).includes(secret), false);
   }
+});
+
+test('non-executing failure classification preserves real-SDK outcomes for accessors and proxies', async (t) => {
+  const secret = 'synthetic-secret-non-executing-diagnostic';
+  const proxyTraps = (touch) => ({
+    get(target, key, receiver) { touch('get'); return Reflect.get(target, key, receiver); },
+    getPrototypeOf(target) { touch('getPrototypeOf'); return Reflect.getPrototypeOf(target); },
+    getOwnPropertyDescriptor(target, key) { touch('getOwnPropertyDescriptor'); return Reflect.getOwnPropertyDescriptor(target, key); },
+  });
+  const accessor = (touch) => ({ get() { touch('message'); return 'search_challenge'; } });
+  const cases = [
+    { name: 'Error own message accessor', native: true,
+      make: (touch) => Object.defineProperty(new Error(), 'message', accessor(touch)) },
+    { name: 'non-Error message accessor', native: false,
+      make: (touch) => Object.defineProperty({}, 'message', accessor(touch)) },
+    { name: 'Error proxy', native: false, proxy: true,
+      make: (touch) => new Proxy(new Error(secret), proxyTraps(touch)) },
+    { name: 'revoked Error proxy', native: false, proxy: true, make: (touch) => {
+      const revocable = Proxy.revocable(new Error(secret), proxyTraps(touch));
+      revocable.revoke(); return revocable.proxy;
+    } },
+    { name: 'native Error with proxy prototype and own data message', native: true, code: 'search_challenge',
+      make: (touch) => Object.setPrototypeOf(new Error('search_challenge'), new Proxy({}, proxyTraps(touch))) },
+    { name: 'native Error with proxy prototype and inherited message accessor', native: true,
+      make: (touch) => Object.setPrototypeOf(new Error(),
+        new Proxy(Object.defineProperty({}, 'message', accessor(touch)), proxyTraps(touch))) },
+    { name: 'native Error with inherited message accessor', native: true,
+      make: (touch) => Object.setPrototypeOf(new Error(), Object.defineProperty({}, 'message', accessor(touch))) },
+    { name: 'forged Error prototype with own data message', native: false,
+      make: () => Object.assign(Object.create(Error.prototype), { message: 'search_challenge' }) },
+    { name: 'non-string own data message', native: true,
+      make: (touch) => Object.defineProperty(new Error(), 'message', {
+        value: { toString() { touch('toString'); return secret; } },
+      }) },
+  ];
+  for (const c of cases) await t.test(c.name, async () => {
+    async function run(makeError) {
+      const controller = new AbortController();
+      const reads = [];
+      const error = makeError((name) => { reads.push(name); controller.abort(); });
+      const { runtime, trace } = fixture([{ ...searchStep, args: { query: secret } }]);
+      let calls = 0;
+      const result = await runInvestigation({ ...INPUT, signal: controller.signal }, {
+        modelRuntime: runtime, adapter: adapter({ search: async () => { calls++; throw error; } }),
+      });
+      assert.equal(calls, 1); assert.equal(trace.length, 1);
+      return { result, reads, aborted: controller.signal.aborted };
+    }
+    // Check the actual Node helpers, including revoked proxies, without invoking traps.
+    const nativeReads = [];
+    const error = c.make((name) => nativeReads.push(name));
+    assert.equal(types.isProxy(error), c.proxy ?? false);
+    assert.equal(types.isNativeError(error), c.native);
+    assert.deepEqual(nativeReads, []);
+    // Both paths use the installed SDK, with identical inert vs side-effecting rejections.
+    const baseline = await run(() => new Error(c.code ?? secret));
+    const candidate = await run(c.make);
+    assert.deepEqual(candidate.reads, []);
+    assert.equal(candidate.aborted, false);
+    assert.deepEqual(candidate.result, baseline.result);
+    assert.equal(candidate.result.status, 'failed'); assert.equal(candidate.result.reason, 'tool_failure');
+    assert.equal(candidate.result.modelCalls, 1); assert.equal(candidate.result.toolCalls, 1);
+    assert.equal(candidate.result.toolOutputBytes, 0); assert.deepEqual(candidate.result.sources, []);
+    assert.deepEqual(candidate.result.firstToolFailure, { tool: 'research_search', stage: 'adapter', code: c.code ?? 'other' });
+    assert.equal(Object.isFrozen(candidate.result.firstToolFailure), true);
+    assert.equal(JSON.stringify(candidate.result).includes(secret), false);
+  });
 });
 
 test('SDK validation and unknown-tool rejection retain only fixed lifecycle enums, not argument/error text', async () => {

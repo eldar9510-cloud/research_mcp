@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { types } from 'node:util';
 import { createAgentSession, createExtensionRuntime, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 
@@ -12,10 +13,11 @@ const TOOL_FAILURE_CODES = new Set([
 ]);
 const toolName = (name) => name === 'research_search' || name === 'research_fetch' ? name : 'other';
 function toolFailureCode(error) {
-  try {
-    const message = error instanceof Error ? error.message : undefined;
-    return TOOL_FAILURE_CODES.has(message) ? message : 'other';
-  } catch { return 'other'; }
+  // Native checks do not walk prototypes or invoke traps; never read error.message.
+  if (types.isProxy(error) || !types.isNativeError(error)) return 'other';
+  const descriptor = Object.getOwnPropertyDescriptor(error, 'message');
+  return descriptor && Object.hasOwn(descriptor, 'value') && typeof descriptor.value === 'string' &&
+    TOOL_FAILURE_CODES.has(descriptor.value) ? descriptor.value : 'other';
 }
 export const LIMITS = Object.freeze({
   wallMs: 180_000, modelCalls: 5, toolCalls: 4, toolTimeoutMs: 12_000,

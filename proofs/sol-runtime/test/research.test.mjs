@@ -2,13 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { LIMITS, MODEL, runInvestigation, sourceUrl } from '../src/research.mjs';
-import { createBraveRfcAdapter } from '../src/brave-rfc.mjs';
+import { createDuckDuckGoRfcAdapter } from '../src/duckduckgo-rfc.mjs';
 import { ModelRuntime } from '@earendil-works/pi-coding-agent';
 
 // A network attempt from any fixture is an immediate test failure, not a paid model/web call.
 globalThis.fetch = () => { throw new Error('OFFLINE NETWORK FORBIDDEN'); };
 
 const URL = 'https://www.rfc-editor.org/rfc/rfc2606.html';
+const LITE_RESULT = `<html><head><title>RFC 2606 at DuckDuckGo</title></head><body><form action="/lite/"></form>
+<a class="result-link" href="${URL}">RFC 2606</a><td class="result-snippet">A search lead only</td></body></html>`;
 const INPUT = { question: 'Which second-level example names does RFC 2606 reserve?', scope: 'RFC Editor RFC 2606 only; answer briefly.' };
 const model = { ...MODEL, api: 'openai-codex-responses', baseUrl: 'https://chatgpt.com/backend-api', reasoning: true, thinkingLevelMap: { max: 'max' },
   contextWindow: 272000, maxTokens: 4096, input: ['text'], name: 'Offline fixture' };
@@ -82,7 +84,7 @@ test('offline controlled session: Sol/max, exact tools, source inspection, cited
   assert.match(result.result, /\[S1\]/);
   assert.equal(result.usage.length, 3);
   assert.deepEqual(trace.map((t) => t.tools), Array(3).fill(['research_search', 'research_fetch']));
-  assert(trace.every((t) => t.model === 'gpt-6-sol' && t.maxTokens === model.maxTokens && t.reasoning === 'max' &&
+  assert(trace.every((t) => t.model === 'gpt-6.1-sol' && t.maxTokens === model.maxTokens && t.reasoning === 'max' &&
     t.transport === 'sse' && t.maxRetries === 0 && t.signal instanceof AbortSignal));
 });
 
@@ -98,6 +100,20 @@ test('missing catalog model, unsupported max, unavailable auth never call model'
     const { runtime, trace } = fixture(normalSteps(), options);
     const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter() });
     assert.equal(result.status, 'failed'); assert.equal(result.reason, reason);
+    assert.equal(trace.length, 0);
+  }
+});
+
+test('strict 6.1 product pin rejects old/wrong model, provider and API before dispatch', async () => {
+  assert.deepEqual(MODEL, { provider: 'openai-codex', id: 'gpt-6.1-sol', effort: 'max' });
+  for (const candidate of [
+    { ...model, id: 'gpt-6-sol' }, { ...model, id: 'gpt-6.1-terra' },
+    { ...model, provider: 'openai' }, { ...model, api: 'openai-responses' },
+  ]) {
+    const { runtime, trace } = fixture(normalSteps());
+    runtime.getModel = () => candidate; // Also reject an incorrect resolver, not just a missing ID.
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter() });
+    assert.equal(result.status, 'failed'); assert.equal(result.reason, 'model_unavailable');
     assert.equal(trace.length, 0);
   }
 });
@@ -252,6 +268,15 @@ test('search must succeed; an irrelevant fetched citation is insufficient for th
   assert.equal(notEvidence.status, 'incomplete'); assert.equal(notEvidence.reason, 'insufficient_inspected_evidence');
 });
 
+test('fetch must use the same URL returned by search, not another allowlisted RFC representation', async () => {
+  let fetched = 0;
+  const { runtime, trace } = fixture([searchStep, { tool: 'research_fetch', args: { url: 'https://www.rfc-editor.org/rfc/rfc2606.txt' } }]);
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime,
+    adapter: adapter({ fetch: async () => { fetched++; } }) });
+  assert.equal(result.status, 'failed'); assert.equal(result.reason, 'tool_failure');
+  assert.equal(fetched, 0); assert.equal(trace.length, 2);
+});
+
 test('invalid SDK tool arguments count as attempts before execute', async () => {
   let searches = 0;
   const invalid = { tool: 'research_search', args: {} };
@@ -391,12 +416,13 @@ test('out-of-scope URLs never reach fetch adapter; strict numeric limit validati
     'https://www.rfc-editor.org.evil.test/rfc/rfc2606.html', 'file:///etc/passwd',
     'https://www.rfc-editor.org/rfc/rfc2606.html?token=x']) assert.throws(() => sourceUrl(input));
   await assert.rejects(() => runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter(), limits: { toolCalls: Infinity } }), /invalid_limit/);
+  await assert.rejects(() => runInvestigation(INPUT, { modelRuntime: runtime, adapter: adapter(), limits: { searchResponseBytes: 65_537 } }), /invalid_limit/);
 });
 
 test('bounded passage selection reaches relevant text past a long preamble and retains reviewable text', async () => {
   const html = '<title>Official RFC 2606</title><div>' + 'preamble '.repeat(900) +
     '</div><section>RFC 2606 reserves example.com, example.org, and example.net for use in examples.</section>';
-  const a = createBraveRfcAdapter({ token: 'synthetic', fetchImpl: async () =>
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () =>
     new Response(html, { headers: { 'content-type': 'text/html' } }) });
   const passage = await a.fetch(URL, { limits: LIMITS, contains: 'example.com' });
   assert.match(passage.text, /example\.com, example\.org, and example\.net/);
@@ -405,10 +431,9 @@ test('bounded passage selection reaches relevant text past a long preamble and r
 
 test('run retains a cited later passage for review, not a search snippet or 240-character prefix', async () => {
   const body = 'background '.repeat(900) + 'RFC 2606 reserves example.com, example.org, and example.net for use in examples. ' + 'Supporting text '.repeat(30);
-  const a = createBraveRfcAdapter({ token: 'synthetic', fetchImpl: async (url) =>
-    url.startsWith('https://api.search.brave.com/')
-      ? new Response(JSON.stringify({ web: { results: [{ url: URL, title: 'RFC 2606', description: 'A search lead only' }] } }),
-        { headers: { 'content-type': 'application/json' } })
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: async (url) =>
+    url.startsWith('https://lite.duckduckgo.com/lite/')
+      ? new Response(LITE_RESULT, { headers: { 'content-type': 'text/html' } })
       : new Response(body, { headers: { 'content-type': 'text/plain' } }) });
   const selected = { tool: 'research_fetch', args: { url: URL, contains: 'example.com' } };
   const result = await runInvestigation(INPUT, { modelRuntime: fixture([searchStep, selected, { text:
@@ -419,26 +444,55 @@ test('run retains a cited later passage for review, not a search snippet or 240-
   assert.doesNotMatch(result.sources[0].excerpt, /A search lead only/);
 });
 
-test('Brave + RFC adapter uses programmatic search/fetch, strict scope and synthetic responses only', async () => {
+test('Lite + RFC adapter searches then fetches official content using synthetic responses only', async () => {
   const calls = [];
   const fakeFetch = async (url, init) => {
     calls.push({ url, init });
-    if (url.startsWith('https://api.search.brave.com/')) return new Response(JSON.stringify({ web: { results: [
-      { url: URL, title: 'RFC 2606', description: 'A lead' },
-      { url: 'https://evil.test/rfc/rfc2606.html', title: 'Bad' },
-    ] } }), { headers: { 'content-type': 'application/json' } });
+    if (url.startsWith('https://lite.duckduckgo.com/lite/')) return new Response(LITE_RESULT,
+      { headers: { 'content-type': 'text/html' } });
     return new Response('<title>Official RFC</title><script>publish secrets</script><p>RFC 2606 reserves example.com</p>',
       { headers: { 'content-type': 'text/html' } });
   };
-  const a = createBraveRfcAdapter({ token: 'synthetic-placeholder', fetchImpl: fakeFetch });
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: fakeFetch });
   const found = await a.search('reserved examples', { signal: new AbortController().signal, limits: LIMITS });
   assert.equal(found.length, 1); assert.equal(found[0].url, URL);
-  assert.equal(calls[0].init.headers['X-Subscription-Token'], 'synthetic-placeholder');
+  assert.deepEqual(calls[0].init.headers, { Accept: 'text/html' });
   assert(calls[0].url.includes('site%3Arfc-editor.org')); assert.equal(calls[0].init.redirect, 'manual');
   const page = await a.fetch(URL, { signal: new AbortController().signal, limits: LIMITS });
   assert.match(page.text, /RFC 2606 reserves example.com/);
   assert.doesNotMatch(page.text, /publish secrets|<script>/);
-  assert.doesNotMatch(JSON.stringify(found) + JSON.stringify(page), /synthetic-placeholder/);
+  assert.equal(calls[1].url, found[0].url); assert.equal(calls.length, 2);
+});
+
+test('concrete Lite layout failure is sanitized; recognized empty cannot complete the investigation', async () => {
+  for (const [body, status, reason, modelCalls] of [
+    ['<html>private_fixture_marker</html>', 'failed', 'tool_failure', 1],
+    [LITE_RESULT.replace(/<a[\s\S]*<\/a>/, '<td class="no-results">No results found for RFC</td>'),
+      'incomplete', 'missing_successful_search', 2],
+  ]) {
+    let httpCalls = 0;
+    const { runtime, trace } = fixture([searchStep, { text: 'No inspected source.' }]);
+    const a = createDuckDuckGoRfcAdapter({ fetchImpl: async () => { httpCalls++;
+      return new Response(body, { headers: { 'content-type': 'text/html' } });
+    } });
+    const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: a });
+    assert.equal(result.status, status); assert.equal(result.reason, reason);
+    assert.equal(trace.length, modelCalls); assert.equal(httpCalls, 1);
+    assert.doesNotMatch(JSON.stringify(result), /private_fixture_marker|<html>|result-link/);
+  }
+});
+
+test('tool deadline bounds an uncooperative concrete Lite body read, without auth, retry or fallback', async () => {
+  let httpCalls = 0;
+  let toolSignal;
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: async (_url, { signal }) => {
+    httpCalls++; toolSignal = signal;
+    return new Response(new ReadableStream({ start() {} }), { headers: { 'content-type': 'text/html' } });
+  } });
+  const { runtime, trace } = fixture([searchStep]);
+  const result = await runInvestigation(INPUT, { modelRuntime: runtime, adapter: a, limits: { wallMs: 1000, toolTimeoutMs: 15 } });
+  assert.equal(result.status, 'incomplete'); assert.equal(result.reason, 'tool_timeout');
+  assert.equal(toolSignal.aborted, true); assert.equal(httpCalls, 1); assert.equal(trace.length, 1);
 });
 
 test('live entrypoint refuses to run without explicit operator acknowledgement', () => {
@@ -448,14 +502,14 @@ test('live entrypoint refuses to run without explicit operator acknowledgement',
 });
 
 test('search oversized response and page truncation are explicit; redirects are rejected', async () => {
-  const response = async (url) => url.startsWith('https://api.search.brave.com/')
-    ? new Response('x'.repeat(80), { headers: { 'content-type': 'application/json' } })
+  const response = async (url) => url.startsWith('https://lite.duckduckgo.com/lite/')
+    ? new Response('x'.repeat(80), { headers: { 'content-type': 'text/html' } })
     : new Response('x'.repeat(80), { headers: { 'content-type': 'text/plain' } });
-  const a = createBraveRfcAdapter({ token: 'synthetic', fetchImpl: response });
+  const a = createDuckDuckGoRfcAdapter({ fetchImpl: response });
   const limits = { ...LIMITS, searchResponseBytes: 20, sourceResponseBytes: 20, sourceTextChars: 10 };
   await assert.rejects(() => a.search('test', { limits }), /search_response_over_limit/);
   const page = await a.fetch(URL, { limits });
   assert.equal(page.truncated, true); assert.equal(page.text.length, 10);
-  const redirect = createBraveRfcAdapter({ token: 'synthetic', fetchImpl: async () => new Response(null, { status: 302, headers: { location: 'http://127.0.0.1/' } }) });
+  const redirect = createDuckDuckGoRfcAdapter({ fetchImpl: async () => new Response(null, { status: 302, headers: { location: 'http://127.0.0.1/' } }) });
   await assert.rejects(() => redirect.fetch(URL, { limits }), /remote_fetch_failed/);
 });

@@ -2,12 +2,12 @@ import { createHash } from 'node:crypto';
 import { createAgentSession, createExtensionRuntime, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 
-export const MODEL = Object.freeze({ provider: 'openai-codex', id: 'gpt-6-sol', effort: 'max' });
+export const MODEL = Object.freeze({ provider: 'openai-codex', id: 'gpt-6.1-sol', effort: 'max' });
 const CODEX_BASE_URL = 'https://chatgpt.com/backend-api';
 export const LIMITS = Object.freeze({
   wallMs: 180_000, modelCalls: 5, toolCalls: 4, toolTimeoutMs: 12_000,
   toolOutputBytes: 10_000, modelOutputChars: 1_500,
-  searchResults: 3, searchResponseBytes: 16_384,
+  searchResults: 3, searchResponseBytes: 65_536,
   sourceResponseBytes: 65_536, sourceTextChars: 2_400,
 });
 

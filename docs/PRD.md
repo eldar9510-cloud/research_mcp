@@ -61,7 +61,7 @@ There are three reuse outcomes:
 
 New research can arrive through either of two paths:
 
-- A standalone researcher controlled by the MCP engine, using **`openai-codex/gpt-6-sol` with reasoning effort `max`**.
+- A standalone researcher controlled by the MCP engine, using **`openai-codex/gpt-6.1-sol` with reasoning effort `max`**.
 - A finished research report supplied by the user from another platform.
 
 The engine is not a wrapper around the existing Gemini deep-research integration. That integration is excluded from the design.
@@ -546,7 +546,7 @@ A separately managed SDK session is not inherently a process or security sandbox
 
 ### 10.2 Model requirement
 
-**ENG-02:** Use `openai-codex/gpt-6-sol` with `thinkingLevel: "max"`.
+**ENG-02:** Use `openai-codex/gpt-6.1-sol` with `thinkingLevel: "max"` (owner-approved model-pin update).
 
 - Do not silently substitute Terra, Luna, Gemini, or another model.
 - Do not silently lower effort to reduce cost or work around incompatibility.
@@ -558,7 +558,7 @@ A separately managed SDK session is not inherently a process or security sandbox
 
 Local inspection established the following:
 
-- The installed model catalogue contains `openai-codex/gpt-6-sol` and maps `max` to `max`.
+- Earlier local inspection found `openai-codex/gpt-6-sol` with `max` mapped to `max`; this historical observation does not establish availability of the now-required `gpt-6.1-sol`.
 - The installed Pi SDK documents controlled sessions, explicit model/thinking selection, configured authentication reuse, and custom-tool wiring.
 - Web search and page fetching are not Pi SDK built-in tools and must be supplied explicitly.
 - The existing Jev helper performs bounded local lexical retrieval and optionally prepares ordinary Jev reranking calls over supplied excerpts.
@@ -1152,7 +1152,7 @@ This ledger records the design interview rather than creating a second backlog.
 | Licensing | MIT code; CC BY 4.0 for reports the contributor has the right to license. |
 | Initial import scale | About twenty selected reports; no bulk-history/PDF pipeline. |
 | Research engine | Standalone MCP-controlled researcher, not merely the host conversation doing all work. |
-| Research model | Sol, maximum supported effort; locally identified as `openai-codex/gpt-6-sol` / `max`. |
+| Research model | Owner-approved Sol 6.1, `openai-codex/gpt-6.1-sol` / `max`; live runtime/auth availability remains unverified. |
 | Alternative input | Import external finished deep research without rerunning it. |
 | Gemini integration | Excluded; do not troubleshoot, depend on, or silently fall back to it for this product. |
 | Research depth | One bounded planned investigation; sources, alternatives, limitations, and remaining gaps. |

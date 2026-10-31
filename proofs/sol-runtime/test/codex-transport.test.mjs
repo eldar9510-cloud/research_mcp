@@ -12,7 +12,7 @@ globalThis.fetch = () => { throw new Error('OFFLINE NETWORK FORBIDDEN'); };
 test('actual installed Codex SDK transport does NOT send model.maxTokens as a remote token cap', async () => {
   let requests = 0;
   let serialized;
-  const model = { provider: 'openai-codex', id: 'gpt-6-sol', api: 'openai-codex-responses',
+  const model = { provider: 'openai-codex', id: 'gpt-6.1-sol', api: 'openai-codex-responses',
     baseUrl: 'https://chatgpt.com/backend-api', maxTokens: 1, contextWindow: 272000,
     reasoning: true, thinkingLevelMap: { max: 'max' }, input: ['text'],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
@@ -43,7 +43,7 @@ test('actual installed Codex SDK transport does NOT send model.maxTokens as a re
   });
   const message = await stream.result();
   assert.equal(message.stopReason, 'stop', message.errorMessage); assert.equal(requests, 1);
-  assert.equal(serialized.model, 'gpt-6-sol');
+  assert.equal(serialized.model, 'gpt-6.1-sol');
   assert.equal(serialized.reasoning.effort, 'max');
   assert.equal(serialized.tools[0].name, 'research_search');
   assert.equal(Object.hasOwn(serialized, 'max_output_tokens'), false);

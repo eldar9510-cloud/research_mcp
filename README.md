@@ -2,7 +2,7 @@
 
 A reusable research library for Pi: find previous investigations, reuse what applies, improve them when requested, and publish reviewed results for future sessions.
 
-**Status: specification stage.** This repository contains the approved product requirements. The MCP server, research engine, and Pi integration are not implemented yet.
+**Status: first implementation slice.** A local MCP stdio server imports finished Markdown/plain-text reports as **local unaccepted proposals** and reads them in bounded pages. See [docs/import.md](docs/import.md) for setup, the actual supported Pi MCP-adapter connection, record/tool contracts, tests and limitations. Search, acceptance, research, Git publication and automatic Pi workflow are not implemented.
 
 ## Planned workflow
 
@@ -18,7 +18,7 @@ Existing reports are not automatically improved or source-checked. Incomplete re
 
 See **[docs/PRD.md](docs/PRD.md)** for the detailed requirements, data format, proposed MCP tools, research lifecycle, approval rules, acceptance tests, and milestones.
 
-Implementation proposals and unverified live-runtime details are explicitly distinguished from confirmed product requirements. No real research reports have been imported into this repository yet.
+Implementation proposals and unverified live-runtime details are explicitly distinguished from confirmed product requirements. No real research reports have been imported into this repository yet; tests use original fictional fixtures.
 
 ## Licenses
 

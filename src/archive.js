@@ -434,11 +434,11 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     return page({ saved: { ...saved, revision: entry.revision, sourceDigest: saved.sourceDigest,
       state: 'LOCAL_ACCEPTED_UNPUBLISHED', warnings: entry.warnings }, body, text }, args, pageBytes, { reportId: args.reportId });
   }
-  async function reviewProposal({ proposalId, acceptedAt = now(), expectedBaseRevision = null }) {
+  async function reviewProposal({ proposalId, acceptedAt = now(), expectedBaseRevision = null, includeFiles = false }) {
     await ready();
     cleanId(proposalId);
     if (expectedBaseRevision !== null) fail('revision_conflict', 'Revisions of accepted reports are not supported in this slice');
-    if (typeof acceptedAt !== 'string' || Number.isNaN(Date.parse(acceptedAt)) ||
+    if (typeof acceptedAt !== 'string' || Number.isNaN(Date.parse(acceptedAt)) || Date.parse(acceptedAt) < 0 ||
         new Date(acceptedAt).toISOString() !== acceptedAt) fail('invalid_input', 'Invalid acceptance timestamp');
     const { saved, body } = await load(proposalId);
     const { index, revision: expectedCatalogueRevision } = await catalogue({ first: true });
@@ -452,10 +452,20 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     const bytes = reportBytes(stored, body);
     if (bytes.length > MAX_REPORT_BYTES) fail('limit_reached', 'Accepted report exceeds storage limit');
     const changedFiles = [`reports/${metadata.id}.md`, 'INDEX.json'];
+    // Whole-second mtime is reproducible on supported filesystems, making the
+    // derived catalogue's exact bytes reviewable *before* acceptance writes.
+    const reportMtimeMs = Math.floor(Date.parse(acceptedAt) / 1000) * 1000;
+    const entry = entryFor(stored, sha(bytes), bytes.length, reportMtimeMs);
+    const next = { version: 1, entries: [...index.entries, entry].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0) };
+    const catalogueContent = indexBytes(next);
+    if (catalogueContent.length > MAX_INDEX_BYTES) fail('limit_reached', 'Catalogue exceeds 8 MiB; inspect report metadata');
     const review = { proposalId, expectedRevision: saved.revision, expectedBaseRevision, acceptedAt,
       expectedCatalogueRevision, reportId: metadata.id, reportRevision: sha(bytes), sourceDigest: saved.sourceDigest,
-      changedFiles, archiveRoot: archive };
+      catalogueRevision: sha(catalogueContent), reportMtimeMs, changedFiles, archiveRoot: archive };
     return { ok: true, status: 'review', review: { ...review, reviewDigest: sha(JSON.stringify(review)) },
+      // Host-only opt-in; never sent by the MCP review registration.
+      ...(includeFiles ? { files: [{ path: changedFiles[0], content: bytes },
+        { path: changedFiles[1], content: catalogueContent, before: expectedCatalogueRevision === null ? Buffer.alloc(0) : indexBytes(index) }] } : {}),
       metadata, warnings: [...metadata.warnings.map(message => ({ code: 'report_warning', message })), ...saved.warnings],
       changeNote: 'New unpublished report and derived catalogue entry; original source and proposal unchanged. Review full body via read_research before approval.',
       catalogueEntriesBefore: index.entries.length };
@@ -480,14 +490,12 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
         typeof expectedReviewDigest !== 'string' || !digestPattern.test(expectedReviewDigest) ||
         (expectedCatalogueRevision !== null && (typeof expectedCatalogueRevision !== 'string' || !digestPattern.test(expectedCatalogueRevision))))
       fail('invalid_input', 'Acceptance requires the reviewed revision, catalogue revision and digest');
-    const result = await reviewProposal({ proposalId, acceptedAt, expectedBaseRevision });
+    const result = await reviewProposal({ proposalId, acceptedAt, expectedBaseRevision, includeFiles: true });
     const { review } = result;
     if (review.expectedRevision !== expectedRevision || review.expectedCatalogueRevision !== expectedCatalogueRevision ||
         review.reviewDigest !== expectedReviewDigest) fail('revision_conflict', 'Review changed; inspect and approve a new review');
-    const { saved, body } = await load(proposalId);
-    const { index } = await catalogue({ first: true });
-    const metadata = { ...saved.metadata, created_at: acceptedAt, updated_at: acceptedAt };
-    const bytes = reportBytes({ format: 1, metadata, warnings: saved.warnings, sourceDigest: saved.sourceDigest, proposalRevision: saved.revision }, body);
+    const bytes = result.files[0].content;
+    const next = JSON.parse(result.files[1].content.toString('utf8'));
     let linked = false;
     try {
       await writeCheckpoint('before_report');
@@ -496,12 +504,14 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
       await noSymlinks(reports);
       await publishFile(join(reports, `${review.reportId}.md`), bytes);
       linked = true;
+      await fs.utimes(join(reports, `${review.reportId}.md`), review.reportMtimeMs / 1000, review.reportMtimeMs / 1000);
+      const reportHandle = await fs.open(join(reports, `${review.reportId}.md`), constants.O_RDONLY);
+      try { await reportHandle.sync(); } finally { await reportHandle.close(); }
       const reportDir = await fs.open(reports, constants.O_RDONLY);
       try { await reportDir.sync(); } finally { await reportDir.close(); }
       await writeCheckpoint('report_linked');
       const st = await fs.stat(join(reports, `${review.reportId}.md`));
-      const entry = entryFor({ metadata, warnings: saved.warnings, sourceDigest: saved.sourceDigest }, review.reportRevision, bytes.length, st.mtimeMs);
-      const next = { version: 1, entries: [...index.entries, entry].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0) };
+      if (st.mtimeMs !== review.reportMtimeMs) fail('catalogue_stale', 'Filesystem cannot retain the reviewed timestamp');
       await writeCheckpoint('before_index');
       const catalogueRevision = await replaceIndex(next);
       return { ok: true, status: 'accepted_local_unpublished', reportId: review.reportId, revision: review.reportRevision,

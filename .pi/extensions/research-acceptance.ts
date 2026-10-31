@@ -1,6 +1,8 @@
 // Project-local Pi host gate for the installed pi-mcp-adapter proxy, direct and script paths.
 // Project trust and the adapter must both be enabled; raw MCP clients are trusted local software.
 import { createArchive } from '../../src/archive.js';
+import { createPublication, publicationDisplay } from '../../src/publication.js';
+import { Text, matchesKey, truncateToWidth } from '@earendil-works/pi-tui';
 import { lstat, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -55,10 +57,82 @@ function displayCopy(text: string): string {
 }
 const displayField = (value: unknown) => displayCopy(String(value)).replace(/\n/g, '\\n');
 
+// Read-only, scrollable review. Only an actual host key decision resolves approval;
+// no tool schema or command argument accepts an approval boolean. Never renders Markdown/ANSI.
+async function reviewPublication(ctx: ExtensionContext, display: string): Promise<boolean> {
+  return await ctx.ui.custom<boolean>((tui, _theme, _keys, done) => {
+    const text = new Text(display, 0, 0);
+    let offset = 0;
+    let height = 10;
+    let lines: string[] = [];
+    let width = 0;
+    return {
+      render(w: number) {
+        if (w !== width || !lines.length) { lines = text.render(w); width = w; }
+        height = Math.max(1, Math.min(20, tui.terminal.rows - 6));
+        offset = Math.max(0, Math.min(offset, Math.max(0, lines.length - height)));
+        return [truncateToWidth(`REVIEW ONLY: lines ${offset + 1}-${Math.min(lines.length, offset + height)}/${lines.length}`, w),
+          ...lines.slice(offset, offset + height),
+          truncateToWidth('Arrows/PgUp/PgDn/Home/End: read | Ctrl+Y: approve accept+commit+push | Esc: deny', w)];
+      },
+      handleInput(data: string) {
+        if (matchesKey(data, 'escape') || matchesKey(data, 'ctrl+c')) { done(false); return; }
+        if (matchesKey(data, 'ctrl+y')) { done(true); return; }
+        if (matchesKey(data, 'up')) offset--;
+        if (matchesKey(data, 'down')) offset++;
+        if (matchesKey(data, 'pageUp')) offset -= height;
+        if (matchesKey(data, 'pageDown')) offset += height;
+        if (matchesKey(data, 'home')) offset = 0;
+        if (matchesKey(data, 'end')) offset = lines.length;
+        tui.requestRender();
+      },
+      invalidate() { text.invalidate(); lines = []; },
+    };
+  }) === true;
+}
+
 export default function (pi: ExtensionAPI) {
   let current: ExtensionContext | undefined;
+  let publicationActive = false;
+  let publicationController: AbortController | undefined;
+  // Ordinary Git belongs to this host-only command, never to the research/MCP tools.
+  pi.registerCommand('research-publish', {
+    description: 'Review and approve one proposal + exact report/catalogue commit + push: <proposalId> <remote-name> <branch>',
+    handler: async (args, ctx) => {
+      let latestState: object | undefined;
+      const record = (state: object) => { latestState = state; pi.appendEntry('research-publication', state); };
+      if (ctx.mode !== 'tui' || publicationActive || !ctx.isIdle()) {
+        record({ status: 'not_approved', accepted: false, committed: false, published: false });
+        ctx.ui.notify('Publication requires an idle interactive TUI host; nothing dispatched.', 'warning');
+        return;
+      }
+      const parts = args.trim().split(/\s+/);
+      if (parts.length !== 3) { ctx.ui.notify('Usage: /research-publish <proposalId> <remote-name> <branch>', 'warning'); return; }
+      publicationActive = true;
+      publicationController = new AbortController();
+      try {
+        const roots = { archiveRoot: process.env.RESEARCH_ARCHIVE_ROOT, workRoot: process.env.RESEARCH_WORK_ROOT,
+          importRoot: process.env.RESEARCH_IMPORT_ROOT };
+        const archive = createArchive(roots);
+        const result = await createPublication({ archive, repository: roots.archiveRoot }).publish({
+          proposalId: parts[0], remote: parts[1], branch: parts[2], mode: ctx.mode,
+          signal: publicationController.signal, onState: record,
+          confirm: async (display: string) => {
+            const approved = await reviewPublication(ctx, display);
+            return approved && roots.archiveRoot === process.env.RESEARCH_ARCHIVE_ROOT &&
+              roots.workRoot === process.env.RESEARCH_WORK_ROOT && roots.importRoot === process.env.RESEARCH_IMPORT_ROOT;
+          },
+        });
+        ctx.ui.notify(publicationDisplay(JSON.stringify(result)), result.published === true ? 'info' : 'warning');
+      } catch {
+        // Do not overwrite a completed/partial side effect with a false setup-failure receipt.
+        record(latestState ?? { status: 'validation_failed', accepted: false, committed: false, published: false });
+        ctx.ui.notify('Publication stopped; inspect its last session receipt and local/remote state. No automatic retry.', 'warning');
+      } finally { publicationActive = false; publicationController = undefined; }
+    },
+  });
   pi.on('session_start', (_event, ctx) => { current = ctx; });
-  pi.on('session_shutdown', () => { current = undefined; });
+  pi.on('session_shutdown', () => { current = undefined; publicationController?.abort(); });
   pi.events.on(MCP_TOOL_APPROVAL_REQUEST_EVENT, (request: McpToolApprovalRequest) => {
     if (request.originalToolName !== 'accept_research_draft') return;
     request.claim(async () => {
@@ -68,7 +142,7 @@ export default function (pi: ExtensionAPI) {
         state, reviewDigest: digest ?? null, proposalId: typeof args?.proposalId === 'string' ? args.proposalId : null,
       });
       // A model-supplied approved:true is never authorization. Do not dispatch in headless modes.
-      if (!ctx || ctx.mode !== 'tui' || request.signal?.aborted || !args || typeof args !== 'object' ||
+      if (!ctx || ctx.mode !== 'tui' || publicationActive || request.signal?.aborted || !args || typeof args !== 'object' ||
           Array.isArray(args) || Object.keys(args).sort().join(',') !== expectedKeys) {
         record('not_approved');
         return 'deny';

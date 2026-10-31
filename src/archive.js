@@ -32,6 +32,9 @@ const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 const MAX_RECORD_BYTES = 24 * 1024; // One bound for serialized publication and subsequent reads.
 const MAX_WARNINGS = 40; // 32 relationships plus eight bounded import diagnostics.
 const MAX_PROPOSALS = 10000;
+const MAX_INDEX_BYTES = 8 * 1024 * 1024;
+const MAX_REPORT_BYTES = MAX_SOURCE_BYTES + MAX_RECORD_BYTES + 64;
+const EMPTY_INDEX = { version: 1, entries: [] };
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const looksLikeCredential = text => /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\b(?:sk-|ghp_)[A-Za-z0-9_-]{20,}\b|\b(?:api[_ -]?key|access[_ -]?token|password|secret)\s*[:=]\s*['\"]?[A-Za-z0-9/+_.=-]{16,}/i.test(text);
 const fail = (code, message) => { throw new ArchiveError(code, message); };
@@ -125,17 +128,66 @@ async function publishFile(path, data) {
   } finally { await fs.rm(temp, { force: true }); }
 }
 function cleanId(value) { if (typeof value !== 'string' || !proposalId.test(value)) fail('invalid_input', 'Invalid proposal ID'); return value; }
+function cleanReportId(value) { if (!id.safeParse(value).success) fail('invalid_input', 'Invalid report ID'); return value; }
+const indexBytes = index => Buffer.from(JSON.stringify(index, null, 2) + '\n');
+const reportBytes = (saved, body) => Buffer.concat([
+  Buffer.from(`---\n${JSON.stringify(saved, null, 2)}\n---\n`), body,
+]);
+const entryFor = (saved, revision, size, mtimeMs) => {
+  const m = saved.metadata;
+  return { id: m.id, path: `reports/${m.id}.md`, revision, sourceDigest: saved.sourceDigest, size, mtimeMs,
+    title: m.title, question: m.question, scope: m.scope, summary: m.summary,
+    researched_at: m.researched_at, last_improved_at: m.last_improved_at,
+    created_at: m.created_at, updated_at: m.updated_at, imported_at: m.imported_at,
+    language: m.language, origin: m.origin, related_reports: m.related_reports,
+    superseded_by: m.superseded_by, warnings: [...m.warnings.map(message => ({ code: 'report_warning', message })), ...saved.warnings] };
+};
+function parseReport(bytes, expectedId) {
+  if (!bytes.subarray(0, 4).equals(Buffer.from('---\n'))) fail('catalogue_invalid', 'Accepted report header is invalid; rebuild after inspection');
+  const end = bytes.indexOf(Buffer.from('\n---\n'), 4);
+  if (end < 0 || end > MAX_RECORD_BYTES) fail('catalogue_invalid', 'Accepted report header is invalid; rebuild after inspection');
+  let saved;
+  try { saved = JSON.parse(utf8(bytes.subarray(4, end))); } catch { fail('catalogue_invalid', 'Accepted report metadata is invalid'); }
+  if (!saved || saved.format !== 1 || Object.keys(saved).sort().join(',') !== 'format,metadata,proposalRevision,sourceDigest,warnings' ||
+      !digestPattern.test(saved.sourceDigest ?? '') ||
+      !digestPattern.test(saved.proposalRevision ?? '') || !safeRecord(saved.metadata) || saved.metadata.id !== expectedId ||
+      !Array.isArray(saved.warnings) || saved.warnings.length > MAX_WARNINGS ||
+      !saved.warnings.every(w => w && typeof w.code === 'string' && /^[a-z_]{1,48}$/.test(w.code) &&
+        typeof w.message === 'string' && Buffer.byteLength(w.message, 'utf8') <= 512)) fail('catalogue_invalid', 'Accepted report metadata is invalid');
+  const body = bytes.subarray(end + 5);
+  if (!body.length || body.length > MAX_SOURCE_BYTES || sha(body) !== saved.sourceDigest) fail('catalogue_invalid', 'Accepted report body digest differs; inspect before rebuilding');
+  let text;
+  try { text = utf8(body); } catch { fail('catalogue_invalid', 'Accepted report is not valid UTF-8; inspect before rebuilding'); }
+  return { saved, body, text };
+}
+function safeRecord(m) {
+  if (!m || typeof m !== 'object') return false;
+  const { created_at, updated_at, imported_at, ...input } = m;
+  return importMetadata.safeParse(input).success && [created_at, updated_at, imported_at].every(x =>
+    typeof x === 'string' && !Number.isNaN(Date.parse(x)) && new Date(x).toISOString() === x);
+}
+function searchTerms(text) { return text.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []; }
+function relevance(entry, terms) {
+  const fields = [[entry.title, 8], [entry.question, 7], [entry.summary, 4], [entry.scope, 3],
+    [entry.id, 3], [entry.language, 1], [entry.related_reports.map(x => x.id).join(' '), 1]];
+  return terms.reduce((total, term) => total + fields.reduce((score, [text, weight]) =>
+    score + (searchTerms(text).some(word => word === term) ? weight : 0), 0), 0);
+}
 
 /** Import is serialized within this instance; separate processes must not share a work root. */
-export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes = 2048, now = () => new Date().toISOString() }) {
+export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes = 2048, maxSearchResults = 5,
+  now = () => new Date().toISOString(), writeCheckpoint = () => {} }) {
   if (![archiveRoot, workRoot, importRoot].every(p => typeof p === 'string' && isAbsolute(p)) ||
-      !Number.isInteger(maxReadBytes) || maxReadBytes < 128 || maxReadBytes > 8192) fail('invalid_input', 'Absolute archive, work and import roots and read limit 128..8192 are required');
+      !Number.isInteger(maxReadBytes) || maxReadBytes < 128 || maxReadBytes > 8192 ||
+      !Number.isInteger(maxSearchResults) || maxSearchResults < 1 || maxSearchResults > 10 || typeof writeCheckpoint !== 'function') fail('invalid_input', 'Absolute disjoint roots, read limit 128..8192 and search limit 1..10 are required');
   const roots = [archiveRoot, workRoot, importRoot].map(p => resolve(p));
   if (roots.some((p, i) => roots.some((q, j) => i !== j && (p === q || inside(p, q) || inside(q, p))))) {
     fail('invalid_input', 'Archive, work and import roots must be disjoint');
   }
   const [archive, work, source] = roots;
   const proposals = join(work, 'proposals');
+  const reports = join(archive, 'reports');
+  const indexPath = join(archive, 'INDEX.json');
   let serial = Promise.resolve();
   async function init() {
     for (const p of roots) { await noSymlinks(p); if (!(await fs.stat(p)).isDirectory()) fail('invalid_input', 'Configured root must be a directory'); }
@@ -168,17 +220,7 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     const text = utf8(body);
     return { saved, body, text };
   }
-  function safeStoredMetadata(m) {
-    if (!m || !safeMetadataShape(m) || typeof m.created_at !== 'string' || typeof m.updated_at !== 'string' || typeof m.imported_at !== 'string') return false;
-    return [m.created_at, m.updated_at, m.imported_at].every(x => {
-      const time = new Date(x);
-      return !Number.isNaN(time.getTime()) && time.toISOString() === x;
-    });
-  }
-  function safeMetadataShape(m) {
-    const { created_at, updated_at, imported_at, ...input } = m;
-    return importMetadata.safeParse(input).success;
-  }
+  function safeStoredMetadata(m) { return safeRecord(m); }
   function revision(metadata, sourceDigest) { return sha(JSON.stringify({ metadata, sourceDigest })); }
   async function existing() {
     const entries = await fs.readdir(proposals);
@@ -193,7 +235,6 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     return found;
   }
   async function checkAccepted(reportId) {
-    const reports = join(archive, 'reports');
     await noSymlinks(reports, true);
     try { if (!(await fs.stat(reports)).isDirectory()) fail('invalid_input', 'Reports location must be a directory'); }
     catch (e) { if (e.code === 'ENOENT') return; throw e; }
@@ -250,16 +291,14 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     }
     return { ok: true, status: 'created', proposal: await readProposal({ proposalId }) };
   }
-  async function readProposal({ proposalId, offset = 0, expectedRevision, referenceOffset = 0, pageBytes: windowBytes }, pageBytes = windowBytes ?? maxReadBytes) {
-    await ready();
-    cleanId(proposalId);
+  function page({ saved, body, text }, { offset = 0, expectedRevision, referenceOffset = 0, pageBytes: windowBytes },
+    pageBytes, key) {
     if (!Number.isInteger(pageBytes) || pageBytes < 128 || pageBytes > maxReadBytes ||
         !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(referenceOffset) || referenceOffset < 0 ||
         (expectedRevision !== undefined && (typeof expectedRevision !== 'string' || !digestPattern.test(expectedRevision)))) fail('invalid_input', 'Invalid read offset or revision');
     if ((offset !== 0 || referenceOffset !== 0) && !expectedRevision) fail('invalid_input', 'Continuation requires expectedRevision');
-    const { saved, body, text } = await load(proposalId);
-    if (expectedRevision && expectedRevision !== saved.revision) fail('revision_conflict', 'Proposal revision differs from requested revision');
-    if (offset > body.length) fail('invalid_input', 'Read offset exceeds proposal length');
+    if (expectedRevision && expectedRevision !== saved.revision) fail('revision_conflict', 'Stored revision differs from requested revision');
+    if (offset > body.length) fail('invalid_input', 'Read offset exceeds content length');
     let end = Math.min(body.length, offset + pageBytes);
     // Never split a UTF-8 code point. Continuation is measured in original byte offsets.
     if (end < body.length) while (end > offset && (body[end] & 0xc0) === 0x80) end--;
@@ -286,22 +325,212 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     const nextReferenceOffset = referenceOffset + slice.length < citations.length ? referenceOffset + slice.length : null;
     const nextOffset = end < body.length ? end : null;
     return {
-      ok: true, state: saved.state, proposalId, reportId: saved.metadata.id,
+      ok: true, state: saved.state, ...(key.proposalId ? { proposalId: key.proposalId } : {}), reportId: saved.metadata.id,
       revision: saved.revision, sourceDigest: saved.sourceDigest, metadata: saved.metadata,
       warnings: saved.warnings,
       content: { text: excerpt, startByte: offset, endByte: end, totalBytes: body.length, truncated: nextOffset !== null, nextOffset },
       citations: slice, citationsTruncated: nextReferenceOffset !== null,
       continuation: nextOffset === null && nextReferenceOffset === null ? null :
-        { proposalId, expectedRevision: saved.revision, pageBytes,
+        { ...key, expectedRevision: saved.revision, pageBytes,
           ...(nextReferenceOffset !== null ? { referenceOffset: nextReferenceOffset, offset } : { offset: nextOffset }) },
     };
   }
+  async function readProposal(args, pageBytes = args.pageBytes ?? maxReadBytes) {
+    await ready();
+    cleanId(args.proposalId);
+    return page(await load(args.proposalId), args, pageBytes, { proposalId: args.proposalId });
+  }
+  async function reportNames() {
+    try { await noSymlinks(reports, true); }
+    catch (e) { if (e.code === 'invalid_input') fail('catalogue_invalid', 'Reports path is unsafe; inspect before rebuilding'); throw e; }
+    try {
+      if (!(await fs.stat(reports)).isDirectory()) fail('catalogue_invalid', 'Reports location is not a directory');
+      const names = (await fs.readdir(reports)).sort();
+      if (names.length > MAX_PROPOSALS || names.some(name => !/^[a-z0-9]+(?:-[a-z0-9]+)*\.md$/.test(name) || name.length > 103))
+        fail('catalogue_stale', 'Unexpected file or excess reports; inspect reports/ before rebuilding');
+      return names;
+    } catch (e) { if (e.code === 'ENOENT') return []; throw e; }
+  }
+  function validEntry(e) {
+    if (!e || !id.safeParse(e.id).success || e.path !== `reports/${e.id}.md` || !digestPattern.test(e.revision ?? '') ||
+        !digestPattern.test(e.sourceDigest ?? '') ||
+        !Number.isSafeInteger(e.size) || e.size < 1 || e.size > MAX_REPORT_BYTES ||
+        typeof e.mtimeMs !== 'number' || !Number.isFinite(e.mtimeMs) || e.mtimeMs < 0) return false;
+    const { id: rid, path, revision: rev, sourceDigest, size, mtimeMs, warnings, ...m } = e;
+    return safeRecord({ id: rid, ...m, warnings: [] }) &&
+      Array.isArray(warnings) && warnings.length <= MAX_WARNINGS + 16 && warnings.every(w =>
+        w && /^[a-z_]{1,48}$/.test(w.code ?? '') && typeof w.message === 'string' && Buffer.byteLength(w.message) <= 512);
+  }
+  async function catalogue({ first = false } = {}) {
+    await ready();
+    let raw;
+    try { raw = await readRegular(indexPath, MAX_INDEX_BYTES); }
+    catch (e) {
+      if (e.code === 'invalid_input' || e.code === 'limit_reached')
+        fail('catalogue_invalid', 'Catalogue file is unsafe or too large; inspect before rebuilding');
+      if (e.code !== 'not_found') throw e;
+      const names = await reportNames();
+      if (first && names.length === 0) return { index: EMPTY_INDEX, revision: null };
+      fail('catalogue_unavailable', 'Catalogue missing; run rebuild_catalogue after inspecting reports/');
+    }
+    let index;
+    try { index = JSON.parse(utf8(raw)); }
+    catch { fail('catalogue_invalid', 'Catalogue is invalid; inspect reports/ and run rebuild_catalogue'); }
+    if (!index || index.version !== 1 || !Array.isArray(index.entries) || index.entries.length > MAX_PROPOSALS ||
+        Object.keys(index).sort().join(',') !== 'entries,version' ||
+        index.entries.some((e, i) => !validEntry(e) || (i > 0 && index.entries[i - 1].id >= e.id)) ||
+        !raw.equals(indexBytes(index))) fail('catalogue_invalid', 'Catalogue is invalid; inspect reports/ and run rebuild_catalogue');
+    const names = await reportNames();
+    if (names.length !== index.entries.length || names.some((name, i) => name !== `${index.entries[i].id}.md`))
+      fail('catalogue_stale', 'Accepted files and catalogue disagree; inspect reports/ and run rebuild_catalogue');
+    for (const entry of index.entries) {
+      const path = join(reports, `${entry.id}.md`);
+      try {
+        await noSymlinks(path);
+        const st = await fs.lstat(path);
+        if (!st.isFile() || st.size !== entry.size || st.mtimeMs !== entry.mtimeMs)
+          fail('catalogue_stale', 'Accepted report changed since indexing; inspect reports/ and run rebuild_catalogue');
+      } catch (e) {
+        if (e.code === 'invalid_input' || e.code === 'not_found')
+          fail('catalogue_stale', 'Indexed report path changed; inspect reports/ and run rebuild_catalogue');
+        throw e;
+      }
+    }
+    return { index, revision: sha(raw) };
+  }
+  async function acceptedFile(reportId) {
+    cleanReportId(reportId);
+    const path = join(reports, `${reportId}.md`);
+    let bytes;
+    try { bytes = await readRegular(path, MAX_REPORT_BYTES); }
+    catch (e) { if (e.code === 'not_found') fail('catalogue_stale', 'Indexed report missing; run rebuild_catalogue'); throw e; }
+    return { ...parseReport(bytes, reportId), bytes };
+  }
+  async function searchReports({ query, limit = maxSearchResults, offset = 0 }) {
+    if (typeof query !== 'string' || Buffer.byteLength(query) > 512 || !query.trim() ||
+        !Number.isInteger(limit) || limit < 1 || limit > maxSearchResults || !Number.isSafeInteger(offset) || offset < 0)
+      fail('invalid_input', 'Search requires a short nonempty query, bounded limit and nonnegative offset');
+    const { index, revision: catalogueRevision } = await catalogue();
+    const terms = [...new Set(searchTerms(query))];
+    if (terms.length === 0 || terms.length > 32) fail('invalid_input', 'Search query has no usable terms or too many terms');
+    const ranked = index.entries.map(e => ({ entry: e, relevance: relevance(e, terms) }))
+      .filter(e => e.relevance > 0).sort((a, b) => b.relevance - a.relevance || (a.entry.id < b.entry.id ? -1 : a.entry.id > b.entry.id ? 1 : 0));
+    if (offset > ranked.length) fail('invalid_input', 'Search offset exceeds match count');
+    return { ok: true, status: ranked.length ? 'matches' : 'empty', catalogueRevision,
+      candidates: ranked.slice(offset, offset + limit).map(({ entry, relevance: score }) => ({ ...entry, relevance: score })),
+      nextOffset: offset + limit < ranked.length ? offset + limit : null,
+      relevanceNote: 'Lexical relevance only; not verified, current or factual trust.' };
+  }
+  async function readAccepted(args, pageBytes = args.pageBytes ?? maxReadBytes) {
+    cleanReportId(args.reportId);
+    const { index } = await catalogue();
+    const entry = index.entries.find(e => e.id === args.reportId);
+    if (!entry) fail('not_found', 'Accepted report not found in catalogue');
+    const { saved, body, text, bytes } = await acceptedFile(args.reportId);
+    if (sha(bytes) !== entry.revision || JSON.stringify(entryFor(saved, entry.revision, bytes.length, entry.mtimeMs)) !== JSON.stringify(entry))
+      fail('catalogue_stale', 'Accepted report and catalogue differ; inspect reports/ and run rebuild_catalogue');
+    return page({ saved: { ...saved, revision: entry.revision, sourceDigest: saved.sourceDigest,
+      state: 'LOCAL_ACCEPTED_UNPUBLISHED', warnings: entry.warnings }, body, text }, args, pageBytes, { reportId: args.reportId });
+  }
+  async function reviewProposal({ proposalId, acceptedAt = now(), expectedBaseRevision = null }) {
+    await ready();
+    cleanId(proposalId);
+    if (expectedBaseRevision !== null) fail('revision_conflict', 'Revisions of accepted reports are not supported in this slice');
+    if (typeof acceptedAt !== 'string' || Number.isNaN(Date.parse(acceptedAt)) ||
+        new Date(acceptedAt).toISOString() !== acceptedAt) fail('invalid_input', 'Invalid acceptance timestamp');
+    const { saved, body } = await load(proposalId);
+    const { index, revision: expectedCatalogueRevision } = await catalogue({ first: true });
+    await checkAccepted(saved.metadata.id);
+    if (index.entries.some(entry => entry.sourceDigest === saved.sourceDigest))
+      fail('duplicate_content', 'Identical content already accepted; inspect the existing report instead');
+    const metadata = { ...saved.metadata, created_at: acceptedAt, updated_at: acceptedAt };
+    const stored = { format: 1, metadata, warnings: saved.warnings, sourceDigest: saved.sourceDigest, proposalRevision: saved.revision };
+    const header = Buffer.byteLength(JSON.stringify(stored, null, 2));
+    if (header > MAX_RECORD_BYTES) fail('limit_reached', 'Accepted report header exceeds 24 KiB limit');
+    const bytes = reportBytes(stored, body);
+    if (bytes.length > MAX_REPORT_BYTES) fail('limit_reached', 'Accepted report exceeds storage limit');
+    const changedFiles = [`reports/${metadata.id}.md`, 'INDEX.json'];
+    const review = { proposalId, expectedRevision: saved.revision, expectedBaseRevision, acceptedAt,
+      expectedCatalogueRevision, reportId: metadata.id, reportRevision: sha(bytes), sourceDigest: saved.sourceDigest,
+      changedFiles, archiveRoot: archive };
+    return { ok: true, status: 'review', review: { ...review, reviewDigest: sha(JSON.stringify(review)) },
+      metadata, warnings: [...metadata.warnings.map(message => ({ code: 'report_warning', message })), ...saved.warnings],
+      changeNote: 'New unpublished report and derived catalogue entry; original source and proposal unchanged. Review full body via read_research before approval.',
+      catalogueEntriesBefore: index.entries.length };
+  }
+  async function replaceIndex(index) {
+    const bytes = indexBytes(index);
+    if (bytes.length > MAX_INDEX_BYTES) fail('limit_reached', 'Catalogue exceeds 8 MiB; inspect report metadata');
+    await noSymlinks(indexPath, true);
+    const temp = join(archive, `.catalogue-${randomUUID()}.tmp`);
+    try {
+      const fh = await fs.open(temp, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+      try { await fh.writeFile(bytes); await fh.sync(); } finally { await fh.close(); }
+      await fs.rename(temp, indexPath);
+      const dir = await fs.open(archive, constants.O_RDONLY);
+      try { await dir.sync(); } finally { await dir.close(); }
+    } finally { await fs.rm(temp, { force: true }); }
+    return sha(bytes);
+  }
+  async function acceptProposal(args) {
+    const { proposalId, expectedRevision, expectedBaseRevision, expectedCatalogueRevision, acceptedAt, expectedReviewDigest } = args;
+    if (typeof expectedRevision !== 'string' || !digestPattern.test(expectedRevision) ||
+        typeof expectedReviewDigest !== 'string' || !digestPattern.test(expectedReviewDigest) ||
+        (expectedCatalogueRevision !== null && (typeof expectedCatalogueRevision !== 'string' || !digestPattern.test(expectedCatalogueRevision))))
+      fail('invalid_input', 'Acceptance requires the reviewed revision, catalogue revision and digest');
+    const result = await reviewProposal({ proposalId, acceptedAt, expectedBaseRevision });
+    const { review } = result;
+    if (review.expectedRevision !== expectedRevision || review.expectedCatalogueRevision !== expectedCatalogueRevision ||
+        review.reviewDigest !== expectedReviewDigest) fail('revision_conflict', 'Review changed; inspect and approve a new review');
+    const { saved, body } = await load(proposalId);
+    const { index } = await catalogue({ first: true });
+    const metadata = { ...saved.metadata, created_at: acceptedAt, updated_at: acceptedAt };
+    const bytes = reportBytes({ format: 1, metadata, warnings: saved.warnings, sourceDigest: saved.sourceDigest, proposalRevision: saved.revision }, body);
+    let linked = false;
+    try {
+      await writeCheckpoint('before_report');
+      await noSymlinks(reports, true);
+      await fs.mkdir(reports).catch(e => { if (e.code !== 'EEXIST') throw e; });
+      await noSymlinks(reports);
+      await publishFile(join(reports, `${review.reportId}.md`), bytes);
+      linked = true;
+      const reportDir = await fs.open(reports, constants.O_RDONLY);
+      try { await reportDir.sync(); } finally { await reportDir.close(); }
+      await writeCheckpoint('report_linked');
+      const st = await fs.stat(join(reports, `${review.reportId}.md`));
+      const entry = entryFor({ metadata, warnings: saved.warnings, sourceDigest: saved.sourceDigest }, review.reportRevision, bytes.length, st.mtimeMs);
+      const next = { version: 1, entries: [...index.entries, entry].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0) };
+      await writeCheckpoint('before_index');
+      const catalogueRevision = await replaceIndex(next);
+      return { ok: true, status: 'accepted_local_unpublished', reportId: review.reportId, revision: review.reportRevision,
+        catalogueRevision, changedFiles: review.changedFiles, reviewDigest: review.reviewDigest,
+        published: false, committed: false };
+    } catch (e) {
+      if (linked) fail('catalogue_stale', 'Report may be accepted but catalogue update failed; inspect files then run rebuild_catalogue. No commit or push occurred.');
+      if (e.code === 'EEXIST') fail('revision_conflict', 'Accepted report already exists; no overwrite');
+      throw e;
+    }
+  }
+  async function rebuildCatalogue() {
+    await ready();
+    const entries = [];
+    for (const name of await reportNames()) {
+      const reportId = name.slice(0, -3);
+      const { saved, bytes } = await acceptedFile(reportId);
+      const st = await fs.stat(join(reports, name));
+      entries.push(entryFor(saved, sha(bytes), bytes.length, st.mtimeMs));
+    }
+    const index = { version: 1, entries };
+    const catalogueRevision = await replaceIndex(index);
+    return { ok: true, status: 'rebuilt', catalogueRevision, reportCount: entries.length,
+      changedFiles: ['INDEX.json'], published: false, committed: false };
+  }
+  function queued(action) { const next = serial.then(action); serial = next.catch(() => {}); return next; }
   return {
-    importReport(input) {
-      const next = serial.then(() => importReport(input));
-      serial = next.catch(() => {});
-      return next;
-    },
-    readProposal,
+    importReport: input => queued(() => importReport(input)),
+    readProposal, readAccepted, searchReports,
+    reviewProposal: input => queued(() => reviewProposal(input)),
+    acceptProposal: input => queued(() => acceptProposal(input)),
+    rebuildCatalogue: () => queued(rebuildCatalogue),
   };
 }

@@ -202,6 +202,81 @@ try {
     console.log(JSON.stringify({ modelVisibleShrunkEndByte: first.content.endByte, bodyPages, citationPages,
       modelVisibleCitationCount: citations.size, warningsPerPage: first.warnings.length, revisionBound: true, noModelPrompt: true }));
   } finally { if (citationSession) await close(citationSession); }
+  // Selected reads use only the actual adapter's model-visible text. No new Pi
+  // API, model prompt, approval path or external research is involved.
+  let selectionSession;
+  try {
+    const { session, proxy } = await newHostSession();
+    selectionSession = session;
+    const { created_at, updated_at, imported_at, ...inputMeta } = proposal.metadata;
+    const prefix = '\ufeff# Selected read\r\n' + 'évidence 😀\r\n'.repeat(40);
+    const selected = 'See [source][late] [missing] citeturn5search2.\r\n' + '\x01'.repeat(9000) + '\r\n';
+    const notice = '## Correction\r\nKnown error: the old estimate is wrong. Superseded by successor-report; consult [replacement][next].\r\n\r\n';
+    const body = prefix + selected + notice + '## Sources\r\n[late]: https://example.org/evidence\r\n[next]: https://example.org/successor\r\n';
+    const meta = { ...inputMeta, id: 'selected-host-read', warnings: ['Old evidence has a known error.'], superseded_by: 'successor-report' };
+    const p = visiblePayload(await proxy.execute('pi-probe-selected-import', { tool: 'research_pages_save_research_draft', args: { text: body, metadata: meta } })).proposal;
+    const selection = { startByte: Buffer.byteLength(prefix), endByte: Buffer.byteLength(prefix + selected) };
+    const read = args => proxy.execute('pi-probe-selected-read', { tool: 'research_pages_read_research', args });
+    let raw = await read({ proposalId: p.proposalId, expectedRevision: p.revision, selection });
+    let page = visiblePayload(raw);
+    const first = page;
+    assert.ok(page.content.endByte - selection.startByte < 8192, 'model-visible JSON expansion forces shrink');
+    let assembled = '';
+    const citations = new Map();
+    let pageCount = 0;
+    let maxVisibleBytes = 0;
+    while (true) {
+      assert.ok(++pageCount < 20);
+      maxVisibleBytes = Math.max(maxVisibleBytes, Buffer.byteLength(raw.content.filter(x => x.type === 'text').map(x => x.text).join('\n')));
+      assert.equal(page.revision, p.revision);
+      assert.deepEqual(page.metadata, first.metadata);
+      assert.deepEqual(page.warnings, first.warnings);
+      assert.deepEqual(page.notices, first.notices);
+      assert.equal(page.notices[0].text, notice);
+      assert.equal(page.metadata.superseded_by, 'successor-report');
+      assert.deepEqual(page.selection, selection);
+      assert.ok(page.notices[0].startByte >= selection.endByte, 'warning is outside the requested range');
+      for (const citation of page.citations) citations.set(citation.label, citation);
+      assembled += page.content.text;
+      if (!page.continuation) break;
+      assert.equal(page.continuation.referenceOffset, undefined);
+      raw = await read(page.continuation);
+      const next = visiblePayload(raw);
+      assert.equal(next.content.startByte, page.content.endByte);
+      page = next;
+    }
+    assert.equal(assembled, selected);
+    assert.equal(citations.get('late').target, 'https://example.org/evidence');
+    assert.equal(citations.get('next').target, 'https://example.org/successor');
+    assert.equal(citations.get('missing').status, 'unresolved');
+    assert.equal(citations.get('turn5search2').status, 'unresolved');
+    const end = visiblePayload(await read({ proposalId: p.proposalId, expectedRevision: p.revision,
+      selection: { startByte: selection.endByte, endByte: selection.endByte } }));
+    assert.equal(end.content.text, '');
+    assert.equal(end.continuation, null);
+    const bodyPath = join(workRoot, 'proposals', `${p.proposalId}.body`);
+    const original = await fs.readFile(bodyPath);
+    try {
+      await fs.appendFile(bodyPath, 'changed between pages');
+      const stale = await read(first.continuation);
+      assert.match(stale.content.find(x => x.type === 'text')?.text ?? '', /revision_conflict/);
+    } finally { await fs.writeFile(bodyPath, original); }
+    const wideNotice = '## Correction\nKnown error: consult successor-report.\n' + 'This limitation qualifies the older finding.\n'.repeat(700);
+    assert.ok(Buffer.byteLength(wideNotice) > 24 * 1024);
+    const wideText = '# Evidence\nDated finding.\n\n' + wideNotice;
+    const wide = visiblePayload(await proxy.execute('pi-probe-wide-notice-import', { tool: 'research_pages_save_research_draft',
+      args: { text: wideText, metadata: { ...meta, id: 'wide-host-notice' } } })).proposal;
+    const wideRaw = await proxy.execute('pi-probe-wide-notice-read', { tool: 'research_pages_read_research', args: {
+      proposalId: wide.proposalId, expectedRevision: wide.revision, selection: { startByte: 11, endByte: 25 },
+    } });
+    const widePage = visiblePayload(wideRaw);
+    assert.equal(widePage.content.text, 'Dated finding.');
+    assert.equal(widePage.notices[0].text, wideNotice);
+    const wideNoticeVisibleBytes = Buffer.byteLength(wideRaw.content.filter(x => x.type === 'text').map(x => x.text).join('\n'));
+    assert.equal(session.messages.length, 0);
+    console.log(JSON.stringify({ selectedPiHostRead: true, selection, revision: p.revision, pageCount, maxVisibleBytes, wideNoticeVisibleBytes,
+      laterCorrectionAndSuccessorOnEveryPage: true, unresolvedImportedMarker: true, staleContinuationRejected: true, noModelPrompt: true }));
+  } finally { if (selectionSession) await close(selectionSession); }
   // The installed adapter brokers every accept dispatch (proxy/direct/script). A
   // fake TUI decision is deterministic test input, not a claim of human consent.
   const approvalEvents = [];
@@ -416,6 +491,18 @@ try {
     assert.equal(read.revision, envelope.reportRevision);
     assert.equal(read.metadata.scope, result.candidates[0].scope);
     assert.ok(read.warnings.some(w => w.code === 'local_dependency'));
+    const original = await fs.readFile(sourcePath, 'utf8');
+    const start = original.indexOf('Method B:');
+    const end = original.indexOf('\n', start);
+    const selection = { startByte: Buffer.byteLength(original.slice(0, start)), endByte: Buffer.byteLength(original.slice(0, end)) };
+    const selected = archivePayload(await proxy.execute('pi-probe-accepted-selected-read', { tool: 'research_import_read_research',
+      args: { reportId: read.reportId, expectedRevision: read.revision, selection } }));
+    assert.equal(selected.content.text, original.slice(start, end));
+    assert.equal(selected.revision, read.revision);
+    assert.ok(selected.notices.some(n => n.text.includes('Limitations: no instrumented soil-moisture readings')));
+    assert.deepEqual(selected.metadata, read.metadata);
+    assert.deepEqual(selected.warnings, read.warnings);
+    assert.equal(selected.continuation, null);
     assert.ok(session.messages.length === 0);
     assert.equal(await fs.readFile(tripwire, 'utf8').catch(e => e.code === 'ENOENT' ? '' : Promise.reject(e)), '');
     console.log(JSON.stringify({ piHostAcceptance: true, simulatedUserApproval: true, hostReviewPrompts: 2,

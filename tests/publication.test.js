@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { createPublication, publicationDisplay, runPublicationGit } from '../src/publication.js';
 import { publicationFixture, sensitiveCalls } from './publication-support.js';
+import { metadata } from './support.js';
 
 // Git's implicit HOME config is isolated too; no credentials/global config read or changed.
 const home = await mkdtemp(join(tmpdir(), 'publication-home-'));
@@ -116,6 +117,185 @@ for (const mutation of ['proposal', 'catalogue', 'target', 'branch', 'new-outgoi
     assert.equal(f.accepts, 0);
     assert.deepEqual(sensitiveCalls(f.calls), []);
     assert.equal(await f.git(['rev-parse', 'refs/heads/main'], f.remoteRoot), f.head);
+  });
+}
+
+for (const when of ['before-review', 'during-confirmation']) {
+  test(`symbolic remote destination ${when} refuses without sensitive dispatch`, async t => {
+    const f = await publicationFixture(t);
+    await f.git(['update-ref', 'refs/heads/other', f.head], f.remoteRoot);
+    const makeSymbolic = async () => {
+      await f.git(['symbolic-ref', 'refs/heads/main', 'refs/heads/other'], f.remoteRoot);
+      // Actual Git advertises the alias even when both branches have the same OID.
+      assert.match(await f.git(['ls-remote', '--symref', '--refs', '--', f.remoteRoot, 'refs/heads/main']),
+        /^ref: refs\/heads\/other\trefs\/heads\/main\n/);
+    };
+    if (when === 'before-review') await makeSymbolic();
+    let prompts = 0;
+    const result = await publisher(f).publish({ ...f.publishArgs, confirm: async display => {
+      prompts++;
+      assert.ok(display.includes('refs/heads/main'));
+      assert.ok(!display.includes('refs/heads/other'));
+      await makeSymbolic();
+      return true;
+    } });
+    assert.equal(result.status, when === 'before-review' ? 'validation_failed' : 'stale_review');
+    assert.equal(prompts, when === 'before-review' ? 0 : 1);
+    assert.equal(f.accepts, 0);
+    assert.deepEqual(sensitiveCalls(f.calls), []);
+    assert.equal(await f.git(['rev-parse', 'HEAD']), f.head);
+    for (const branch of ['main', 'other'])
+      assert.equal(await f.git(['rev-parse', `refs/heads/${branch}`], f.remoteRoot), f.head);
+  });
+}
+
+test('symbolic destination cannot hide behind configured legacy Git protocol', async t => {
+  const f = await publicationFixture(t);
+  await f.git(['config', 'protocol.version', '0']);
+  await f.git(['update-ref', 'refs/heads/other', f.head], f.remoteRoot);
+  await f.git(['symbolic-ref', 'refs/heads/main', 'refs/heads/other'], f.remoteRoot);
+  let prompts = 0;
+  const result = await publisher(f).publish({ ...f.publishArgs, confirm: async () => { prompts++; return true; } });
+  assert.equal(result.status, 'validation_failed');
+  assert.equal(prompts, 0);
+  assert.equal(f.accepts, 0);
+  assert.deepEqual(sensitiveCalls(f.calls), []);
+  assert.equal(await f.git(['rev-parse', 'refs/heads/other'], f.remoteRoot), f.head);
+});
+
+test('target inspection without negotiated protocol v2 fails closed before approval', async t => {
+  const f = await publicationFixture(t);
+  let prompts = 0;
+  const result = await publisher(f, (cwd, args, opts) => {
+    // Actual Git v0 omits non-HEAD symrefs. Exercise the same missing-handshake
+    // failure as a legacy-server fallback, without a network or custom helper.
+    return f.runGit(cwd, args.includes('ls-remote') && args.includes('--symref') ? ['-c', 'protocol.version=0', ...args] : args, opts);
+  }).publish({ ...f.publishArgs, confirm: async () => { prompts++; return true; } });
+  assert.equal(result.status, 'validation_failed');
+  assert.match(result.error, /protocol v2/);
+  assert.equal(prompts, 0);
+  assert.equal(f.accepts, 0);
+  assert.deepEqual(sensitiveCalls(f.calls), []);
+  assert.equal(await f.git(['rev-parse', 'HEAD']), f.head);
+  assert.equal(await f.git(['rev-parse', 'refs/heads/main'], f.remoteRoot), f.head);
+});
+
+for (const when of ['accepted', 'staged', 'committed']) {
+  test(`symbolic destination on ${when} revalidation preserves honest partial state`, async t => {
+    const f = await publicationFixture(t);
+    await f.git(['update-ref', 'refs/heads/other', f.head], f.remoteRoot);
+    let accepted = false;
+    let committed = false;
+    let staged = false;
+    let mutated = false;
+    const result = await publisher(f, async (cwd, args, opts) => {
+      if (!mutated && args.includes('ls-remote') && !args.includes('--get-url') &&
+          (when === 'accepted' ? accepted : when === 'staged' ? staged : committed)) {
+        mutated = true;
+        await f.git(['symbolic-ref', 'refs/heads/main', 'refs/heads/other'], f.remoteRoot);
+      }
+      const value = await f.runGit(cwd, args, opts);
+      if (args.includes('update-index') && args.at(-1).endsWith(',INDEX.json')) staged = true;
+      return value;
+    }).publish({ ...f.publishArgs, onState: state => { accepted = state.accepted === true; committed = state.committed === true; } });
+    assert.equal(mutated, true);
+    assert.equal(result.status, when === 'committed' ? 'committed_unpushed' : 'accepted_local');
+    assert.equal(result.accepted, true);
+    assert.equal(result.committed, when === 'committed');
+    assert.equal(result.published, false);
+    assert.equal(f.accepts, 1);
+    assert.equal(f.calls.filter(args => args.includes('push')).length, 0);
+    assert.equal(f.calls.filter(args => args.includes('commit')).length, when === 'committed' ? 1 : 0);
+    if (when === 'accepted') assert.deepEqual(sensitiveCalls(f.calls), []);
+    for (const branch of ['main', 'other'])
+      assert.equal(await f.git(['rev-parse', `refs/heads/${branch}`], f.remoteRoot), f.head);
+  });
+}
+
+async function acceptPriorReport(f) {
+  const proposal = (await f.archive.importReport({ text: 'Separate previously accepted report.\n', metadata: metadata('prior-accepted') })).proposal;
+  const { review } = await f.archive.reviewProposal({ proposalId: proposal.proposalId });
+  await f.archive.acceptProposal({ proposalId: proposal.proposalId, expectedRevision: review.expectedRevision,
+    expectedBaseRevision: review.expectedBaseRevision, expectedCatalogueRevision: review.expectedCatalogueRevision,
+    expectedReviewDigest: review.reviewDigest, acceptedAt: review.acceptedAt });
+  return review;
+}
+
+async function assertCompleteRemoteCatalogue(f, commit) {
+  const result = await runPublicationGit(f.remoteRoot, ['show', `${commit}:INDEX.json`]);
+  assert.equal(result.code, 0);
+  const { entries } = JSON.parse(result.stdout);
+  const paths = (await f.git(['ls-tree', '-r', '--name-only', commit, '--', 'reports'], f.remoteRoot)).split('\n').sort();
+  assert.deepEqual(paths, entries.map(entry => entry.path).sort());
+  for (const entry of entries) {
+    const blob = await runPublicationGit(f.remoteRoot, ['show', `${commit}:${entry.path}`]);
+    assert.equal(blob.code, 0);
+    assert.equal(blob.stdout.length, entry.size);
+    assert.equal(sha(blob.stdout), entry.revision);
+  }
+}
+
+test('ignored prior local acceptance cannot hitchhike as a missing catalogue report', async t => {
+  const f = await publicationFixture(t);
+  await fs.writeFile(join(f.archiveRoot, '.gitignore'), 'reports/\nINDEX.json\n');
+  await f.git(['add', '--', '.gitignore']);
+  await f.git(['-c', 'commit.gpgSign=false', 'commit', '-m', 'Fixture ignored collection']);
+  await f.git(['push', '--', 'origin', 'HEAD:refs/heads/main']);
+  const base = await f.git(['rev-parse', 'HEAD']);
+  await acceptPriorReport(f);
+  const priorReport = await fs.readFile(join(f.archiveRoot, 'reports/prior-accepted.md'));
+  const priorIndex = await fs.readFile(join(f.archiveRoot, 'INDEX.json'));
+  assert.equal(await f.git(['status', '--porcelain=v1', '--untracked-files=all']), '');
+  let prompts = 0;
+  const result = await publisher(f).publish({ ...f.publishArgs, confirm: async () => { prompts++; return true; } });
+  assert.equal(result.status, 'validation_failed');
+  assert.equal(prompts, 0);
+  assert.equal(f.accepts, 0);
+  assert.deepEqual(sensitiveCalls(f.calls), []);
+  assert.equal(await f.git(['rev-parse', 'HEAD']), base);
+  assert.equal(await f.git(['rev-parse', 'refs/heads/main'], f.remoteRoot), base);
+  assert.deepEqual((await f.git(['ls-tree', '-r', '--name-only', base], f.remoteRoot)).split('\n'), ['.gitignore', 'README.md']);
+  assert.ok((await fs.readFile(join(f.archiveRoot, 'reports/prior-accepted.md'))).equals(priorReport));
+  assert.ok((await fs.readFile(join(f.archiveRoot, 'INDEX.json'))).equals(priorIndex));
+  await assert.rejects(fs.stat(join(f.archiveRoot, 'reports/publication-fixture.md')), { code: 'ENOENT' });
+});
+
+for (const corrupt of [false, true]) {
+  test(`${corrupt ? 'digest-mismatched' : 'valid'} prior tracked report is checked against the complete candidate tree`, async t => {
+    const f = await publicationFixture(t);
+    const prior = await acceptPriorReport(f);
+    if (corrupt) {
+      const path = join(f.archiveRoot, 'reports/prior-accepted.md');
+      const bytes = await fs.readFile(path);
+      const changed = Buffer.from(bytes.toString('utf8').replace('Separate previously', 'Tampered previously'));
+      assert.equal(changed.length, bytes.length);
+      await fs.writeFile(path, changed);
+      // The local catalogue's ordinary size/mtime checks alone cannot catch this.
+      await fs.utimes(path, prior.reportMtimeMs / 1000, prior.reportMtimeMs / 1000);
+    }
+    await f.git(['add', '--', 'INDEX.json', 'reports/prior-accepted.md']);
+    await f.git(['-c', 'commit.gpgSign=false', 'commit', '-m', 'Fixture prior tracked report']);
+    await f.git(['push', '--', 'origin', 'HEAD:refs/heads/main']);
+    const base = await f.git(['rev-parse', 'HEAD']);
+    let prompts = 0;
+    const result = await publisher(f).publish({ ...f.publishArgs, confirm: async () => { prompts++; return true; } });
+    if (corrupt) {
+      assert.equal(result.status, 'validation_failed');
+      assert.equal(prompts, 0);
+      assert.equal(f.accepts, 0);
+      assert.deepEqual(sensitiveCalls(f.calls), []);
+      assert.equal(await f.git(['rev-parse', 'HEAD']), base);
+      assert.equal(await f.git(['rev-parse', 'refs/heads/main'], f.remoteRoot), base);
+      await assert.rejects(fs.stat(join(f.archiveRoot, 'reports/publication-fixture.md')), { code: 'ENOENT' });
+    } else {
+      assert.equal(result.status, 'pushed');
+      assert.equal(prompts, 1);
+      assert.equal(f.accepts, 1);
+      assert.equal(await f.git(['rev-parse', 'refs/heads/main'], f.remoteRoot), result.commit);
+      assert.deepEqual((await f.git(['diff-tree', '--no-commit-id', '--name-only', '-r', result.commit])).split('\n').sort(),
+        ['INDEX.json', 'reports/publication-fixture.md']);
+      await assertCompleteRemoteCatalogue(f, result.commit);
+    }
   });
 }
 

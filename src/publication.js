@@ -22,13 +22,20 @@ export function publicationDisplay(text) {
 export function runPublicationGit(repository, args, { input, signal } = {}) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
   Object.assign(env, { GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' });
+  // Protocol v0/v1 may hide non-HEAD symrefs even with --symref. Request v2
+  // and verify negotiation, failing closed if an old server falls back. Packet
+  // diagnostics stay bounded in memory; never put them in a review or receipt.
+  const inspectSymrefs = args.includes('ls-remote') && args.includes('--symref');
+  if (inspectSymrefs) env.GIT_TRACE_PACKET = '1';
   return new Promise((resolveResult, reject) => {
     const child = execFile('git', ['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false',
-      '-c', 'gc.auto=0', '-c', 'maintenance.auto=false', ...args],
+      '-c', 'gc.auto=0', '-c', 'maintenance.auto=false', ...(inspectSymrefs ? ['-c', 'protocol.version=2'] : []), ...args],
     { cwd: repository, env, signal, timeout: 15000, killSignal: 'SIGKILL', maxBuffer: 12 * 1024 * 1024, encoding: 'buffer' },
     (error, stdout, stderr) => {
       if (error && (typeof error.code !== 'number' || error.killed)) return reject(Error('Git command interrupted or exceeded its bound; inspect local/remote state.'));
-      resolveResult({ code: error?.code ?? 0, stdout, stderr });
+      if (!error && inspectSymrefs && !/packet:\s+ls-remote< version 2(?:\r?\n|$)/.test(stderr.toString('utf8')))
+        return reject(Error('Remote inspection requires negotiated Git protocol v2 for symbolic-ref visibility.'));
+      resolveResult({ code: error?.code ?? 0, stdout, stderr: inspectSymrefs ? Buffer.alloc(0) : stderr });
     });
     child.stdin.on('error', () => {});
     child.stdin.end(input);
@@ -106,7 +113,10 @@ export function createPublication({ archive, repository, runGit = runPublication
         // checking that a second rewrite would not redirect that inspection.
         const reResolved = await text(['ls-remote', '--get-url', '--', url]);
         if (reResolved !== url) stop('Chained URL rewrites are ambiguous; select an unambiguous target.');
-        const lines = (await text(['ls-remote', '--refs', '--exit-code', '--', url, ref])).split('\n');
+        const lines = (await text(['ls-remote', '--symref', '--refs', '--exit-code', '--', url, ref])).split('\n');
+        // A same-OID alias is still a different destination: pushing it may also
+        // advance an unreviewed referent. Refuse it on every target inspection.
+        if (lines.some(line => line.startsWith('ref: '))) stop('Symbolic destination branches are not supported for publication.');
         const parts = lines[0]?.split('\t');
         if (lines.length !== 1 || parts?.[1] !== ref || !oid.test(parts[0])) stop('The target branch must already exist and resolve uniquely.');
         return { remote, url, ref, remoteRevision: parts[0], configDigest };
@@ -133,10 +143,38 @@ export function createPublication({ archive, repository, runGit = runPublication
         if (outgoing.length || head !== destination.remoteRevision) stop('Existing outgoing commits or a behind/diverged branch require a separately approved publication arrangement.');
         return { repository, gitDir, branch: branchRef, head, ...destination, outgoingCommits: outgoing };
       }
+      async function consistentCatalogue(tree, overlays = []) {
+        // Status omits ignored local acceptances. Check the whole candidate
+        // report set, not just the two approved paths or the working directory.
+        const catalogueBytes = overlays.find(f => f.path === 'INDEX.json')?.content ?? await git(['show', `${tree}:INDEX.json`]);
+        let index;
+        try { index = JSON.parse(catalogueBytes.toString('utf8')); }
+        catch { stop('Candidate Git catalogue is invalid.'); }
+        if (index?.version !== 1 || !Array.isArray(index.entries)) stop('Candidate Git catalogue is invalid.');
+        const reports = new Map();
+        for (const line of (await git(['ls-tree', '-r', '-z', '--full-tree', tree, '--', 'reports'])).toString('utf8').split('\0').filter(Boolean)) {
+          const tab = line.indexOf('\t');
+          const [mode, type, blob] = line.slice(0, tab).split(' ');
+          reports.set(line.slice(tab + 1), { mode, type, blob });
+        }
+        for (const file of overlays.filter(f => f.path.startsWith('reports/')))
+          reports.set(file.path, { mode: '100644', type: 'blob', content: file.content });
+        if (reports.size !== index.entries.length || new Set(index.entries.map(e => e.path)).size !== index.entries.length)
+          stop('Proposed catalogue and candidate Git reports disagree; the reviewed two-file operation cannot publish this archive.');
+        for (const entry of index.entries) {
+          const report = reports.get(entry.path);
+          if (!report || report.type !== 'blob' || !['100644', '100755'].includes(report.mode))
+            stop('A catalogued report is missing or not a regular file in the candidate Git tree; no additional files will be included.');
+          const bytes = report.content ?? await git(['cat-file', 'blob', report.blob]);
+          if (bytes.length !== entry.size || sha(bytes) !== entry.revision)
+            stop('A candidate Git report differs from its catalogue size or digest; inspect the archive before publication.');
+        }
+      }
       const plan = await archive.reviewProposal({ proposalId, includeFiles: true });
       if (plan.review.archiveRoot !== repository || plan.files?.length !== 2 ||
           plan.files[0].path !== `reports/${plan.review.reportId}.md` || plan.files[1].path !== 'INDEX.json') stop('Unexpected archive publication file set.');
       base = await snapshot();
+      await consistentCatalogue(base.head, plan.files);
       const message = `Publish research: ${plan.review.reportId}`;
       const envelope = { review: plan.review, metadata: plan.metadata, warnings: plan.warnings, target: base,
         files: plan.files.map(f => ({ path: f.path, mode: '100644', revision: sha(f.content), bytes: f.content.length })), commitMessage: message,
@@ -161,6 +199,7 @@ export function createPublication({ archive, repository, runGit = runPublication
       const latest = await archive.reviewProposal({ proposalId, acceptedAt: plan.review.acceptedAt, includeFiles: true });
       if (JSON.stringify(await snapshot()) !== JSON.stringify(base) || latest.review.reviewDigest !== plan.review.reviewDigest ||
           latest.files.some((f, i) => f.path !== plan.files[i].path || !f.content.equals(plan.files[i].content))) stop('Reviewed envelope changed; fresh review and approval are required.');
+      await consistentCatalogue(base.head, plan.files);
       record({ status: 'approved' });
       phase = 'acceptance';
       await archive.acceptProposal(acceptance(plan.review)); // Backend revalidates immediately before writing.
@@ -192,6 +231,7 @@ export function createPublication({ archive, repository, runGit = runPublication
       for (const f of plan.files) if (!(await git(['show', `:${f.path}`])).equals(f.content)) stop('Staged bytes changed; no commit.');
       await unchangedTarget();
       if (await text(['rev-parse', 'HEAD']) !== base.head) stop('HEAD changed; no commit.');
+      await consistentCatalogue(base.head, plan.files);
       await git(['-c', 'commit.gpgSign=false', 'commit', '--no-verify', '-m', message]);
       approvedCommit = await text(['rev-parse', 'HEAD']);
       if (!oid.test(approvedCommit)) stop('Commit identity could not be confirmed.');
@@ -205,6 +245,7 @@ export function createPublication({ archive, repository, runGit = runPublication
       const changed = (await git(['diff-tree', '--no-commit-id', '--name-only', '-z', '-r', base.head, approvedCommit])).toString('utf8').split('\0').filter(Boolean).sort();
       if (JSON.stringify(changed) !== JSON.stringify(expectedPaths)) stop('Commit file set differs; no push.');
       for (const f of plan.files) if (!(await git(['show', `${approvedCommit}:${f.path}`])).equals(f.content)) stop('Commit bytes differ; no push.');
+      await consistentCatalogue(approvedCommit);
       // Explicit refspec; no configured push refspecs, tags, submodules, mirror,
       // hooks or force. Existing outgoing engine commits were refused above.
       record({ status: 'push_pending', published: null });

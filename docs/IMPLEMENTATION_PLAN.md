@@ -197,7 +197,7 @@ The approved graph has a maximum width of **three independent issues**. More tha
 
 Recommended operating policy:
 
-- Up to **three active Sol/max Mastra workers total**, normally implementation plus any independent review using an available slot.
+- Up to **three active Sol/max Mastra workers total**, including implementation, independent simplification and independent correctness review using available slots.
 - Keep one coordinator; do not create another planner hierarchy.
 - Run live product research/provider probes one at a time by default, under separately authorized bounds. Offline tests and isolated coding can still run in parallel.
 - Reduce dispatch when quota, memory, tests or integration throughput become the bottleneck. Preserve Sol/max rather than silently changing models.
@@ -290,8 +290,11 @@ After integration, future workers start from the new accepted commit. Already-ru
 
 ### 5.3 On every worker return
 
+**Additional user requirement — independent simplification:** After every implementation or repair task, run a separate Sol/max worker in a bounded simplification role before acceptance. This applies to the current #1/#2 candidates too. Use the existing `terra` profile with the explicit Sol override and verified `max`; no installed `/simplify` skill or command was found, so supply the role explicitly rather than inventing a command or global profile. The pass examines the frozen candidate for unnecessary complexity, duplication, avoidable work and opportunities for clearer code while preserving behavior, evidence, limits and security checks. Initially keep it read-only: return actionable minimal changes or an explicit no-change result. The coordinator assigns warranted edits in an isolated writer run. Repair candidates receive their own simplification pass; simplification/review-only runs do not recursively trigger more simplifiers. Count all such workers against the three-slot cap. A read-only simplifier may inspect the same frozen candidate alongside its correctness reviewer. Changes invalidate affected earlier checks/reviews; rerun tests and review the final candidate before integration. Simplification does not replace the independent spec/correctness review or authorize scope changes.
+
 - [ ] Read its result and relevant artifacts, including the effective model/effort preflight.
 - [ ] Inspect the actual candidate diff, including untracked files, rather than trusting a report about an unrelated commit range.
+- [ ] Run and record the independent Sol/max simplification pass for each implementation/repair candidate; resolve material findings without weakening behavior or tests.
 - [ ] Verify the reported checks and arrange one independent, bounded Sol/max review for meaningful changes. Cover spec alignment and applicable standards together rather than launching duplicate review workflows. If the ticket checklist already calls for that same candidate review, this is the same review—not an additional reviewer or worker-owned delegation.
 - [ ] Resolve findings, integrate serially, and rerun affected tests on the integrated candidate. New code invalidates affected earlier results.
 - [ ] Mark the GitHub issue complete only when its acceptance gate is met. Leave it open with an explicit blocker if live verification, publication or a required test is incomplete.
@@ -684,7 +687,8 @@ For a C0 checkpoint, use the current handoff in section 10. Do not preserve an o
 
 - [ ] The candidate corresponds to the current issue scope and actual starting revision.
 - [ ] Applicable acceptance checks pass; omitted live or environment-dependent checks are explicitly identified and keep the issue incomplete when required.
-- [ ] Independent review covers the actual candidate, including uncommitted/untracked work where relevant.
+- [ ] Independent Sol/max simplification has covered the implementation/repair candidate, with material findings resolved and no recursive review-only dispatch loop.
+- [ ] Independent review covers the actual final candidate, including uncommitted/untracked work where relevant.
 - [ ] Review findings are resolved and affected checks rerun after changes.
 - [ ] The coordinator integrates one candidate at a time and verifies the combined tree.
 - [ ] Dates, evidence, side effects and approvals are represented truthfully.

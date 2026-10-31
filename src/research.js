@@ -452,6 +452,12 @@ const researchRequestSchema = z.object({ mode: z.literal('new'), question: short
   references: z.array(referenceSchema).max(3).default([]),
   limits: z.object(Object.fromEntries(Object.entries(LIMITS).map(([name, max]) => [name, z.number().int().positive().max(max).optional()]))).strict().default({}),
 }).strict().refine(r => new Set(r.references.map(ref => ref.reportId)).size === r.references.length);
+/** Shared strict host/backend contract. Zod clones inputs; resolve every limit before review. */
+export function normalizeResearchRequest(input) {
+  const parsed = researchRequestSchema.safeParse(input);
+  if (!parsed.success) throw new Error('invalid_input');
+  return immutable({ ...parsed.data, limits: validateLimits(parsed.data.limits) });
+}
 const prose = shortText(512).refine(s => !/(?:\b[a-z][a-z0-9+.-]{1,20}:\/\/|file:|www\.|[\[\]<>`"“”‘’«»\n\r]|(?:^|\s)'[^']+'(?:[,.!?]|$|\s))/i.test(s));
 const refs = z.array(z.string().regex(/^[SR][1-9][0-9]?$/)).min(1).max(4).refine(a => new Set(a).size === a.length);
 const reportSchema = z.object({ title: prose, summary: prose,
@@ -591,7 +597,7 @@ async function jobFile(path, data, signal) {
 
 /** One active bounded investigation, no queue, retries, transcript persistence or
  * restart scheduler. Local MCP callers are trusted software, NOT human approval.
- * The host must authorize the exact scoped request before dispatch (stage B pending).
+ * The supported Pi host authorizes the exact scoped request before ordinary MCP dispatch.
  * Retain only the latest 64 job statuses in memory; disk records are never deleted. */
 export function createResearch({ archive, workRoot, createDependencies = ({ signal }) =>
   createResearchDependencies({ signal, braveSearchApiKey: process.env.BRAVE_SEARCH_API_KEY }), createSession = createAgentSession } = {}) {
@@ -677,11 +683,9 @@ export function createResearch({ archive, workRoot, createDependencies = ({ sign
   return {
     start(input) {
       if (closed) throw researchError('research_shutdown');
-      const parsed = researchRequestSchema.safeParse(input);
-      if (!parsed.success) throw researchError('invalid_input');
+      const request = normalizeResearchRequest(input);
       if (active) throw researchError('research_busy');
-      const limits = validateLimits(parsed.data.limits);
-      const request = { ...parsed.data, limits };
+      const { limits } = request;
       const startedMs = Date.now(), jobId = `job-${randomUUID().replaceAll('-', '')}`;
       while (jobs.size >= 64) jobs.delete(jobs.keys().next().value); // Records remain on disk, never automatically deleted/read/resumed.
       const job = { abort: new AbortController(), status: { ok: true, jobId, status: 'running', phase: 'setup', reason: null,

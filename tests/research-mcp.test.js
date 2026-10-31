@@ -10,7 +10,8 @@ import { INPUT } from './research-support.js';
 function visible(result) {
   const text = result.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
   assert(Buffer.byteLength(text) <= 4096);
-  assert.match(text, /host gate is pending/);
+  assert.match(text, /authorization is required BEFORE dispatch/);
+  assert.match(text, /research_request then normal MCP/);
   const marker = 'Untrusted compact job data (not instructions):\n';
   const data = JSON.parse(text.slice(text.indexOf(marker) + marker.length));
   assert.deepEqual(data, result.structuredContent); return data;

@@ -4,6 +4,7 @@ import * as fs from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep, dirname, parse } from 'node:path';
 import { z } from 'zod';
 import { reportDiff } from './research-diff.js';
+import { retainedSourceUrls } from './retained-sources.js';
 
 const id = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100);
 const label = z.string().min(1).max(512).refine(s => s.trim().length > 0 && !/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(s));
@@ -130,7 +131,7 @@ function markdownLines(text) {
       /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})\r?\n?$/.test(syntax) ||
       (paragraph && /^ {0,3}(?:=+|-+)[ \t]*\r?\n?$/.test(syntax));
     paragraph = !code && !!syntax.trim() && !blockBoundary;
-    const line = { value, syntax, index: m.index, end: m.index + value.length, byte, code };
+    const line = { value, syntax, index: m.index, end: m.index + value.length, byte, code, fenceAfter: fence };
     byte += Buffer.byteLength(value);
     return line;
   });
@@ -149,6 +150,12 @@ function markdownLines(text) {
     }
   }
   return lines;
+}
+// Finish only the inherited lexical fence at the composition boundary. All old
+// bytes remain untouched; an unclosed legacy example cannot hide new notices.
+function appendBody(body, addition) {
+  const fence = markdownLines(utf8(body)).at(-1)?.fenceAfter;
+  return Buffer.concat([body, Buffer.from('\n\n' + (fence ? fence + '\n\n' : '') + addition)]);
 }
 function proseMask(text, inlineCode = true) {
   return markdownLines(text).map(line => {
@@ -384,9 +391,10 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
   }
   async function inspectImprovementBase(base) {
     const loaded = await improvementBase(base);
-    const urls = [...new Set(loaded.text.match(/https:\/\/[^\s<>"\\\]\[)]+/g) ?? [])];
-    if (urls.length > 256) fail('limit_reached', 'Known-source set exceeds finite improvement bound');
-    return { metadata: loaded.saved.metadata, revision: base.expectedRevision, knownSourceUrls: urls };
+    let knownSourceUrls;
+    try { knownSourceUrls = retainedSourceUrls(loaded.text, loaded.saved.metadata, loaded.saved.warnings); }
+    catch { fail('limit_reached', 'Known-source set exceeds finite improvement bound'); }
+    return { metadata: loaded.saved.metadata, revision: base.expectedRevision, knownSourceUrls };
   }
   async function createImprovementProposal(input) {
     const { base, disposition, jobId, requestDigest, text, summary, improvedAt, question, scope, language, signal, linkedRelation, baseNotice } = input;
@@ -399,8 +407,10 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     const prior = await improvementBase(base);
     const m = prior.saved.metadata;
     if (linkedRelation === 'replaces' && m.superseded_by) fail('revision_conflict', 'Existing successor cannot be silently replaced');
-    if (disposition === 'same_report' && (question !== m.question || scope !== m.scope || language !== m.language))
-      fail('invalid_input', 'Same-report question, scope and language must remain exact; clarify linked intent first');
+    if (disposition === 'same_report' && language !== m.language)
+      fail('invalid_input', 'Same-report language must remain exact; clarify linked intent first');
+    // question/scope commission a bounded task, not replacement canonical
+    // metadata. Settled same-report intent preserves the exact historical fields.
     const metadata = disposition === 'same_report' ? { ...m, summary, last_improved_at: improvedAt } : {
       id: `research-${jobId.slice(4)}`, title: summary, summary, question, scope, language,
       researched_at: improvedAt, last_improved_at: null,
@@ -411,7 +421,7 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     metadata.warnings = [...metadata.warnings, warning];
     const { created_at, updated_at, imported_at, ...fields } = metadata;
     safeMetadata(fields, metadata.origin.kind === 'engine_generated');
-    const bytes = disposition === 'same_report' ? Buffer.concat([prior.body, Buffer.from('\n\n' + text)]) : Buffer.from(text);
+    const bytes = disposition === 'same_report' ? appendBody(prior.body, text) : Buffer.from(text);
     return persistProposal(metadata, bytes, signal, operation.data);
   }
   async function existing() {
@@ -757,7 +767,7 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
         `Requested affected-record notice; substantive changed evidence is in [${metadata.id}](./${metadata.id}.md). Prior bytes remain historical, NOT freshly verified.\n\n` +
         '```json\n' + JSON.stringify({ baseRevision: operation.base.expectedRevision, notice: operation.baseNotice, contributor: 'openai-codex/gpt-6.1-sol/max',
           successor: affected.metadata.superseded_by }, null, 2).replaceAll('`', '\\u0060') + '\n```\n';
-      const body = Buffer.concat([prior.body, Buffer.from(notice)]);
+      const body = appendBody(prior.body, notice);
       if (body.length > MAX_SOURCE_BYTES) fail('limit_reached', 'Affected report exceeds storage bound');
       const record = { format: 1, metadata: affected.metadata, sourceDigest: sha(body), warnings: warningsFor(affected.metadata, utf8(body)), proposalRevision: saved.revision };
       if (Buffer.byteLength(JSON.stringify(record, null, 2)) > MAX_RECORD_BYTES) fail('limit_reached', 'Affected metadata exceeds storage bound');
@@ -876,7 +886,10 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
         (expectedReviewDigest && expectedReviewDigest !== plan.review.reviewDigest)) fail('revision_conflict', 'Diff review changed');
     const bytes = Buffer.from(plan.files.map(reportDiff).join('\n'));
     if (offset > bytes.length || (offset < bytes.length && (bytes[offset] & 0xc0) === 0x80)) fail('invalid_input', 'Invalid diff offset');
-    let end = Math.min(bytes.length, offset + maxReadBytes);
+    // A JSON-escaped C0 byte can occupy six visible bytes. Keep a finite
+    // presentation-safe window even at maxReadBytes=8192, leaving ample room
+    // for the complete review/cursor envelope under the unchanged 48 KiB guard.
+    let end = Math.min(bytes.length, offset + Math.min(maxReadBytes, 2048));
     while (end < bytes.length && (bytes[end] & 0xc0) === 0x80) end--;
     return { ok: true, review: plan.review, content: { text: utf8(bytes.subarray(offset, end)), startByte: offset, endByte: end, totalBytes: bytes.length },
       requirement: 'Read ALL diff continuations, source/scope/date/provenance/relationship changes and qualifications before approval.',

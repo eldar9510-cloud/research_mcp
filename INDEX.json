@@ -717,6 +717,70 @@
           "message": "Imported claims and publication rights have not been checked."
         }
       ]
+    },
+    {
+      "id": "tia-portal-offline-development",
+      "path": "reports/tia-portal-offline-development.md",
+      "revision": "000c7b553e287361833686a95f4cd313a814ebee679ead885564ac02dcb508b5",
+      "sourceDigest": "87b8c8c966aa4e6738d6d1a245e1d902928c1c144d82e6f46a6f8f9bec88ea38",
+      "size": 14574,
+      "mtimeMs": 1793575925000,
+      "title": "TIA Portal offline development: standard versus safety code",
+      "question": "What can be authored/versioned outside TIA, and how do SCL and safety F-LAD/F-FBD workflows differ?",
+      "scope": "External SCL, VCI, Openness and editor workflows; vendor/certification assertions preserved as unchecked report claims.",
+      "summary": "Compares exchange options and distinguishes standard/safety artifacts, workflow limits and validation needs.",
+      "researched_at": "2026-07-21",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:32:05.271Z",
+      "updated_at": "2026-11-01T23:32:05.271Z",
+      "imported_at": "2026-11-01T20:39:00.113Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Safety-language/certification/hardware-test assertions not verified or professional assurance."
+        },
+        {
+          "code": "report_warning",
+          "message": "Historical vendor/version constraints may not describe current products."
+        },
+        {
+          "code": "report_warning",
+          "message": "Tickets #001/#003 and electronics/tia_portal source/safety paths uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Public vendor/manual/community URLs unchecked."
+        },
+        {
+          "code": "report_warning",
+          "message": "Internal workflow/file layout."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
     }
   ]
 }

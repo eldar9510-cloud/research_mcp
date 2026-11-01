@@ -11,6 +11,9 @@ try {
     maxReadBytes: limit === undefined ? 2048 : Number(limit),
     maxSearchResults: searchLimit === undefined ? 5 : Number(searchLimit) });
   await server.connect(new StdioServerTransport());
+  const shutdown = () => { void server.close().catch(() => { process.exitCode = 1; }); };
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
 } catch {
   // Never print config paths, source text, environment values, or credentials on stdio.
   console.error('research-mcp: failed to start; check configured absolute roots and read limit');

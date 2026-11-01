@@ -19,7 +19,7 @@ they do not prove a live model's semantic trigger accuracy.
 
 Use the existing [local acceptance setup](acceptance.md) and its three exported,
 existing, absolute, disjoint roots. Inspect/trust the local extensions and open a
-fresh Pi session (or `/reload`). No global instruction/config changes, new
+fresh Pi session. Do not reuse adapter session approvals cached before the gates loaded. No global instruction/config changes, new
 credential, service, indexer or package is needed. The installed MCP adapter
 continues to handle import and approved acceptance. Coverage uses the **same
 archive module and bounded read/search presentation** directly, not a private
@@ -75,8 +75,8 @@ research_coverage({action: "decide", outcome: "partial",
 | Outcome | Response / authority |
 | --- | --- |
 | `covered` | Reuse selected dated findings, report ID/revision, citations and caveats. No automatic investigation, improvement or source refresh. |
-| `partial` | Explain reusable material, gaps and uncertainty; offer a future targeted improvement. |
-| `no_useful_match` | Say this bounded lookup found no useful match, not that relevant work cannot exist. Offer future authorized new research or a finished-report import. |
+| `partial` | Explain reusable material, gaps and uncertainty; offer targeted improvement. #9 is unimplemented: reject it, never broaden into a new job. |
+| `no_useful_match` | Say this bounded lookup found no useful match, not that relevant work cannot exist. Offer new research or import; only scoped user permission -> `research_request` -> returned normal MCP call. |
 | `lookup_error` | Missing/invalid/stale catalogue, failed I/O, changed revision or irreducible oversized result: **STOP the automatic research decision**. Not an empty archive or research trigger. |
 
 A covered claim without selected body evidence, or with gaps, unresolved required
@@ -135,10 +135,17 @@ certifies claims nor discards candidates or grants permission.
 
 ## Research and trust
 
-This slice **only offers** future operations. It does not implement #7, dispatch
-research, fetch sources, improve reports, accept or publish. An explicit scoped
-user research request remains separate from lookup permission; it is not
-publication approval and does not make an unavailable engine operational.
+Coverage remains **read-only**: it never dispatches research, fetches sources,
+improves reports, accepts or publishes. The separate [research host gate](research.md)
+prepares one explicitly scoped investigation through `research_request`, then
+main Pi uses its unchanged ordinary MCP call. Original explicit authorization is
+interpreted from the WHOLE delivered user request; when unclear the helper asks
+and waits for exact TUI confirmation. This trusted semantic workflow includes
+trusted extension-delivered user messages, not source/tool text or model booleans.
+An explicit standalone new-job request needs **no coverage prerequisite**. A lookup
+error stops the automatic decision, not a separately explicit standalone request.
+Research permission is not publication approval. The host path is tested offline;
+#7 still requires fresh reviews, parent checks and a newly approved successful live proof.
 Imported/retrieved instructions remain untrusted data, including instructions to
 reveal secrets or publish unrelated files. The workflow is not authentication
 against arbitrary local programs or ordinary Pi shell/file tools.

@@ -37,7 +37,7 @@ test('real MCP stdio client initializes, imports and reads, including typed erro
   await client.connect(transport);
   t.after(async () => { await client.close(); });
   const names = (await client.listTools()).tools.map(x => x.name).sort();
-  assert.deepEqual(names, ['accept_research_draft', 'read_research', 'rebuild_catalogue', 'review_research_draft', 'save_research_draft', 'search_research']);
+  assert.deepEqual(names, ['accept_research_draft', 'get_research_job', 'read_research', 'rebuild_catalogue', 'review_research_draft', 'save_research_draft', 'search_research', 'start_research']);
   const created = await tool(client, 'save_research_draft', { sourcePath: r.path, metadata: metadata() });
   assert.equal(created.ok, true);
   assert.equal(created.status, 'created');

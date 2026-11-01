@@ -555,6 +555,78 @@
       ]
     },
     {
+      "id": "kaleido-v1-headless-static-export",
+      "path": "reports/kaleido-v1-headless-static-export.md",
+      "revision": "67e683ff555de8513a589c24b7efee58b26aa226b38c5044d60e44afdd2187fd",
+      "sourceDigest": "c71b8039903e24cc637e924f0861201131e31302048867fcbe60660cb6ca2032",
+      "size": 7781,
+      "mtimeMs": 1793575950000,
+      "title": "Kaleido v1 headless static export on Linux",
+      "question": "How does Kaleido1.3 export Plotly figures headlessly, and what browser dependencies and failure modes remain?",
+      "scope": "Historical Plotly6.8/Kaleido1.3/Chrome stack; PNG/SVG and batch export, deprecated APIs and alternatives; no rerun.",
+      "summary": "Distinguishes v1 browser discovery from v0 bundling and records failure modes, alternatives and source-stated smoke results.",
+      "researched_at": "2026-08-14",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:32:30.611Z",
+      "updated_at": "2026-11-01T23:32:30.611Z",
+      "imported_at": "2026-11-01T20:39:00.543Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "All bytes excerpted; not a full privacy/rights/legal audit."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Portable upstream/docs/community URLs plus local package/browser paths."
+        },
+        {
+          "code": "report_warning",
+          "message": "Machine browser/environment paths and output sizes remain."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "linkml-contract-generation-semantics",
       "path": "reports/linkml-contract-generation-semantics.md",
       "revision": "13732fc8922489ae029f3a4f98f08d8ba277aadbd941c78f3719696f3573aaf2",

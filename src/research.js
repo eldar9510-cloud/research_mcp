@@ -390,8 +390,8 @@ async function runInvestigation({ question, scope, language, references, signal 
     if (lastMessage?.stopReason !== 'stop') return outcome('failed', providerReason(lastMessage), common());
     if (!searchSucceeded) return outcome('incomplete', 'missing_successful_search', common());
     update('validating');
-    const report = checkedReport(messageText(lastMessage), sources, selectedReferences);
-    if (!report) return outcome('incomplete', 'invalid_report', common());
+    const { report, reportFailure } = checkedReport(messageText(lastMessage), sources, selectedReferences);
+    if (!report) return outcome('incomplete', 'invalid_report', { ...common(), reportFailure });
     if (stopped()) return stopped();
     update('persisting');
     evidenceRef = await wait(saveEvidence({ sources, references: selectedReferences, evidencePlan }, combined));
@@ -467,17 +467,58 @@ const reportSchema = z.object({ title: prose, summary: prose,
   comparison: z.object({ text: prose, sources: refs }).strict(),
   limitations: z.array(prose).min(1).max(6), gaps: z.array(prose).min(1).max(6),
 }).strict();
+// Only these developer-owned public paths may select a field bucket. A numeric
+// pattern element matches an array index but never copies it into a diagnostic.
+const REPORT_FIELDS = [
+  [[], 'report'], [['title'], 'title'], [['summary'], 'summary'],
+  [['findings'], 'findings'], [['findings', 0], 'finding'],
+  [['findings', 0, 'text'], 'finding_text'], [['findings', 0, 'kind'], 'finding_kind'],
+  [['findings', 0, 'sources'], 'finding_sources'], [['findings', 0, 'sources', 0], 'finding_source'],
+  [['findings', 0, 'quote'], 'finding_quote'], [['findings', 0, 'quote', 'source'], 'finding_quote_source'],
+  [['findings', 0, 'quote', 'text'], 'finding_quote_text'],
+  [['comparison'], 'comparison'], [['comparison', 'text'], 'comparison_text'],
+  [['comparison', 'sources'], 'comparison_sources'], [['comparison', 'sources', 0], 'comparison_source'],
+  [['limitations'], 'limitations'], [['limitations', 0], 'limitation'],
+  [['gaps'], 'gaps'], [['gaps', 0], 'gap'],
+];
+const reportRejected = (stage, code, field) => ({ reportFailure: Object.freeze({ stage, code, field }) });
+function reportSchemaFailure(issue) {
+  const path = issue?.path;
+  const field = Array.isArray(path) ? REPORT_FIELDS.find(([pattern]) => pattern.length === path.length &&
+    pattern.every((part, index) => part === 0 ? Number.isSafeInteger(path[index]) && path[index] >= 0 : part === path[index]))?.[1] ?? 'other' : 'other';
+  let code;
+  // Never retain Zod messages, issue objects, supplied keys, paths or values.
+  switch (issue?.code) {
+    case 'invalid_type': code = 'type'; break;
+    case 'invalid_enum_value': code = 'enum'; break;
+    case 'invalid_string': code = 'format'; break;
+    case 'too_small': code = 'too_small'; break;
+    case 'too_big': code = 'too_big'; break;
+    case 'unrecognized_keys': code = 'unknown_fields'; break;
+    case 'custom':
+      code = ['title', 'summary', 'finding_text', 'comparison_text', 'limitation', 'gap'].includes(field) ? 'prose_constraint' :
+        field === 'finding_quote_text' ? 'text_constraint' :
+          ['finding_sources', 'comparison_sources'].includes(field) ? 'reference_constraint' : 'other';
+      break;
+    default: code = 'other';
+  }
+  return reportRejected('schema', code, field);
+}
 function checkedReport(text, sources, references) {
-  let parsed;
-  try { parsed = reportSchema.safeParse(JSON.parse(text)); } catch { return undefined; }
-  if (!parsed.success) return undefined;
+  let parsed, stage = 'json';
+  try {
+    const candidate = JSON.parse(text);
+    stage = 'schema';
+    parsed = reportSchema.safeParse(candidate);
+  } catch { return reportRejected(stage, stage === 'json' ? 'invalid_json' : 'other', stage === 'json' ? 'report' : 'other'); }
+  if (!parsed.success) return reportSchemaFailure(parsed.error.issues[0]);
   const report = parsed.data;
   const ledger = new Map([...sources.map(s => [s.ref, s.excerpt]), ...references.map(r => [r.ref, r.content])]);
   const claims = [...report.findings, report.comparison];
-  if (claims.some(f => f.sources.some(ref => !ledger.has(ref)))) return undefined;
-  if (!report.findings.some(f => f.kind === 'evidence' && f.sources.some(ref => sources.some(s => s.ref === ref)))) return undefined;
-  if (report.findings.some(f => f.quote && (!f.sources.includes(f.quote.source) || !ledger.get(f.quote.source)?.includes(f.quote.text)))) return undefined;
-  return report;
+  if (claims.some(f => f.sources.some(ref => !ledger.has(ref)))) return reportRejected('citations', 'unknown_citation', 'claim_sources');
+  if (!report.findings.some(f => f.kind === 'evidence' && f.sources.some(ref => sources.some(s => s.ref === ref)))) return reportRejected('evidence', 'missing_inspected_evidence', 'findings');
+  if (report.findings.some(f => f.quote && (!f.sources.includes(f.quote.source) || !ledger.get(f.quote.source)?.includes(f.quote.text)))) return reportRejected('quote', 'quote_mismatch', 'finding_quote');
+  return { report };
 }
 const markdown = s => s.replace(/[\\`*_{}\[\]()<>#!|~]/g, '\\$&');
 function renderReport(report, request, sources, references) {
@@ -667,6 +708,7 @@ export function createResearch({ archive, workRoot, createDependencies = ({ sign
         ...(outcome.planRef ? { plan: outcome.planRef } : {}) },
       retention: !evidenceSaved && outcome.sources?.length ? 'unavailable' : 'saved',
       ...(outcome.firstToolFailure ? { firstToolFailure: outcome.firstToolFailure } : {}),
+      ...(outcome.reason === 'invalid_report' && outcome.reportFailure ? { reportFailure: outcome.reportFailure } : {}),
     };
     const recordRef = `jobs/${terminal.jobId}.json`;
     terminal.outputs.record = recordRef;

@@ -230,6 +230,94 @@
       ]
     },
     {
+      "id": "iec-coverage-gemini-historical-source",
+      "path": "reports/iec-coverage-gemini-historical-source.md",
+      "revision": "100f27c71d664797ff860a2a105f06b1645a4cf2402204feb662cbf4d2e24009",
+      "sourceDigest": "bfddfd966b7855099c8981919256852c0424264db04a9ff87ed645d82997e9fe",
+      "size": 7754,
+      "mtimeMs": 1793575864000,
+      "title": "Historical Gemini IEC coverage matrix with known errors",
+      "question": "What did source A claim, which errors were recorded, and where is its reconciled successor?",
+      "scope": "Historical 35-category source kept for provenance/gap framing, not an unqualified current standards answer.",
+      "summary": "Original matrix with explicit four-number/stale-edition warning and reconciled-master pointer.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:31:04.177Z",
+      "updated_at": "2026-11-01T23:31:04.177Z",
+      "imported_at": "2026-11-01T20:38:59.665Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "Gemini",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": "iec-coverage-reconciled-35-categories",
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Wrong product numbers for MCB, PSU, safety relay and Ethernet; systematically stale editions."
+        },
+        {
+          "code": "report_warning",
+          "message": "Always carry exact correction notice and successor, including lower-section reads."
+        },
+        {
+          "code": "report_warning",
+          "message": "Full source URL list is in an unavailable session transcript."
+        },
+        {
+          "code": "report_warning",
+          "message": "Master basename resolves exactly to selected master; no invented repair."
+        },
+        {
+          "code": "report_warning",
+          "message": "Abbreviated source list and transcript-only URLs."
+        },
+        {
+          "code": "report_warning",
+          "message": "Local category vocabulary and transcript dependency."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-stated generating agent label: deep-research-preview-04-2026; underlying model/platform remain unknown unless explicitly attributed."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original successor filename remains in the unchanged body; archive successor ID is iec-coverage-reconciled-35-categories. Read the exact correction and successor context."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "transcript_dependency",
+          "message": "Possible transcript-only evidence; review before publication."
+        },
+        {
+          "code": "unverified_supersession",
+          "message": "Supersession link is unverified until reviewed."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "mayr-dual-brake-checker-wiring",
       "path": "reports/mayr-dual-brake-checker-wiring.md",
       "revision": "95600cb26d8692c2bc644e368967b59036ada3ffe276c44157a3259b89365cfc",

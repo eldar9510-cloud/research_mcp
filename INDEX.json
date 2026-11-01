@@ -487,6 +487,74 @@
       ]
     },
     {
+      "id": "linkml-contract-generation-semantics",
+      "path": "reports/linkml-contract-generation-semantics.md",
+      "revision": "13732fc8922489ae029f3a4f98f08d8ba277aadbd941c78f3719696f3573aaf2",
+      "sourceDigest": "90cf8a5d04272fdcf6f4f2d315e641d8517a0d61eed4752f28a4c72daa347b3e",
+      "size": 29461,
+      "mtimeMs": 1793575933000,
+      "title": "LinkML schema and generated contract semantics",
+      "question": "How can LinkML generate JSON Schema and Pydantic contracts without silently changing constraints?",
+      "scope": "Historical source-only study of schema skeletons, enums, constraints, generator flags and version drift; no generator execution.",
+      "summary": "Maps YAML constraints to generators and identifies extra-field, pattern and dynamic-enum drift risks.",
+      "researched_at": "2026-08-13",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:32:13.518Z",
+      "updated_at": "2026-11-01T23:32:13.518Z",
+      "imported_at": "2026-11-01T20:39:00.214Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Official/tutorial/source URLs and raw relative source references; targets not opened."
+        },
+        {
+          "code": "report_warning",
+          "message": "Internal ELECTRONICS parity-gate context remains."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "mayr-dual-brake-checker-wiring",
       "path": "reports/mayr-dual-brake-checker-wiring.md",
       "revision": "95600cb26d8692c2bc644e368967b59036ada3ffe276c44157a3259b89365cfc",

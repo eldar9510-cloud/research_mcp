@@ -10,6 +10,7 @@ export const JOB_ID = /^job-[a-f0-9]{32}$/;
 export const MATERIALS = Object.freeze(['request', 'plan', 'references', 'evidence', 'source-1', 'source-2', 'source-3', 'source-4', 'output']);
 const suffix = kind => kind === 'evidence' ? 'sources' : kind;
 const fail = () => { throw Error('artifact_unavailable'); };
+const ownerSchema = z.object({ pid: z.number().int().positive().max(Number.MAX_SAFE_INTEGER), token: z.string().regex(/^[a-f0-9]{32}$/) }).strict();
 const digest = z.string().regex(/^[a-f0-9]{64}$/), index = z.number().int().nonnegative();
 const text = z.string().max(65536), date = z.string().refine(v => !Number.isNaN(Date.parse(v)) && new Date(v).toISOString() === v);
 const selection = z.object({ startByte: index, endByte: index }).strict().refine(v => v.endByte > v.startByte);
@@ -41,13 +42,13 @@ export async function checkedDirectory(path) {
     if (stat.isSymbolicLink() || !stat.isDirectory()) fail();
   }
 }
-async function readBytes(path) {
+async function readBytes(path, maximum = 65536, privateOnly = false) {
   await checkedDirectory(parse(path).dir);
   const handle = await fs.open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const stat = await handle.stat();
-    if (!stat.isFile() || stat.size > 65536) fail();
-    const buffer = Buffer.alloc(65537);
+    if (!stat.isFile() || stat.size > maximum || (privateOnly && (stat.mode & 0o777) !== 0o600)) fail();
+    const buffer = Buffer.alloc(maximum + 1);
     let length = 0;
     while (length < buffer.length) {
       const read = await handle.read(buffer, length, buffer.length - length, null);
@@ -55,7 +56,7 @@ async function readBytes(path) {
       length += read.bytesRead;
     }
     const after = await handle.stat();
-    if (length > 65536 || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs) fail();
+    if (length > maximum || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs) fail();
     const bytes = buffer.subarray(0, length);
     new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     return bytes;
@@ -63,6 +64,12 @@ async function readBytes(path) {
 }
 export function researchArtifacts(workRoot, { screen, validateRequest, validateStatus }) {
   const directory = join(resolve(workRoot), 'jobs');
+  const workRootSha256 = sha256(Buffer.from(resolve(workRoot)));
+  const releaseSchema = z.object({ version: z.literal(1), owner: ownerSchema, workRootSha256: digest }).strict();
+  const releasePath = (owner, pending = false) => {
+    ownerSchema.parse(owner);
+    return join(directory, `owner-${owner.token}.release${pending ? '-pending' : ''}.json`);
+  };
   const path = (id, kind) => {
     if (!JOB_ID.test(id) || !/^(?:record|running|state-[1-9][0-9]?|request|plan|references|evidence|source-[1-4]|output)$/.test(kind)) fail();
     return join(directory, `${id}${kind === 'record' ? '' : '.' + suffix(kind)}.json`);
@@ -115,6 +122,27 @@ export function researchArtifacts(workRoot, { screen, validateRequest, validateS
     return result;
   }
   return { directory, ref, write, read, envelope, material,
+    async releaseOwner(owner, signal) {
+      // Publish only a flushed receipt, exclusively. A partial pending file is
+      // never release evidence; retain it rather than overwriting/cleaning it.
+      const pending = releasePath(owner, true), released = releasePath(owner);
+      const bytes = Buffer.from(JSON.stringify({ version: 1, owner, workRootSha256 }) + '\n');
+      signal.throwIfAborted(); await checkedDirectory(directory); signal.throwIfAborted();
+      const handle = await fs.open(pending, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+      try {
+        signal.throwIfAborted(); await handle.writeFile(bytes);
+        signal.throwIfAborted(); await handle.sync(); signal.throwIfAborted();
+      } finally { await handle.close(); }
+      signal.throwIfAborted(); await checkedDirectory(directory); signal.throwIfAborted();
+      await fs.link(pending, released); // Atomic, no replacement; no unflushed release visible.
+    },
+    async ownerReleased(owner) {
+      try {
+        const bytes = await readBytes(releasePath(owner), 512, true);
+        const v = releaseSchema.parse(JSON.parse(bytes.toString('utf8')));
+        return v.owner.pid === owner.pid && v.owner.token === owner.token && v.workRootSha256 === workRootSha256;
+      } catch { return false; } // Missing/partial/unsupported/unavailable stays known-live.
+    },
     async prepare(signal) {
       await checkedDirectory(workRoot); signal?.throwIfAborted();
       await fs.mkdir(directory, { mode: 0o700 }).catch(e => { if (e.code !== 'EEXIST') throw e; });

@@ -13,7 +13,7 @@ import { INPUT, runtime, steps, adapter, terminal, createSession } from './resea
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function setup(t, options = {}) {
-  const r = await roots(t), archive = createArchive(r), f = runtime(steps());
+  const r = await roots(t), archive = createArchive(r), f = runtime(options.script ?? steps());
   const research = createResearch({ archive, workRoot: r.workRoot,
     createDependencies: options.dependencies ?? (async () => ({ modelRuntime: f.runtime, adapter: adapter() })),
     ...(options.createSession ? { createSession: options.createSession } : {}) });
@@ -163,6 +163,22 @@ test('existing tool timeout includes source checkpoint I/O and prevents late ste
   } finally { release.resolve(); restore(m); }
 });
 
+test('validated completion preserves nonfatal SDK rejection and counted attempts across reload', async t => {
+  const s = await setup(t, { script: [{ tool: 'research_search', args: {} }, ...steps()] });
+  const done = await terminal(s.research, s.research.start({ ...INPUT, limits: { modelCalls: 4, toolCalls: 3 } }));
+  assert.equal(done.status, 'completed'); assert.equal(done.reason, null);
+  assert.deepEqual(done.firstToolFailure, { tool: 'research_search', stage: 'sdk_start', code: 'sdk_rejected' });
+  assert.equal(done.modelCalls, 4); assert.equal(done.toolCalls, 3); assert.equal(s.f.trace.length, 4);
+  const proposal = await s.archive.readProposal(done.outputs.proposal);
+  assert.equal(proposal.metadata.origin.kind, 'engine_generated');
+  assert.equal(proposal.revision, done.outputs.proposal.expectedRevision);
+  assert.match(proposal.content.text, /people with disabilities/);
+  await s.research.shutdown();
+  const r = fresh(t, s), got = await r.research.get({ jobId: done.jobId });
+  assert.deepEqual(got, done); assert.equal(r.calls(), 0);
+  assert.deepEqual(await fs.readdir(s.archiveRoot), []);
+});
+
 test('forced-stop survivors cannot expose a finished proposal', async t => {
   const s = await setup(t), done = await terminal(s.research, s.research.start(INPUT)); await s.research.shutdown();
   const path = join(s.workRoot, done.outputs.record), bytes = JSON.stringify({ ...done, status: 'incomplete', reason: 'wall_limit' }) + '\n';
@@ -190,6 +206,9 @@ test('survivor state, reason, diagnostic and configured integer counters agree',
     { reportFailure: { stage: 'json', code: 'invalid_json', field: 'report' } },
     { status: 'completed', reason: null, outputs: done.outputs, modelCalls: done.limits.modelCalls + 1 },
     { status: 'completed', reason: null, outputs: done.outputs, toolCalls: done.limits.toolCalls + 1 },
+    { status: 'completed', reason: null, outputs: done.outputs, firstToolFailure: { tool: 'research_fetch', stage: 'adapter', code: 'other' } },
+    { status: 'completed', reason: null, outputs: done.outputs, firstToolFailure: { tool: 'research_search', stage: 'sdk_start', code: 'other' } },
+    { status: 'completed', reason: null, outputs: done.outputs, toolCalls: 2, firstToolFailure: { tool: 'research_search', stage: 'sdk_start', code: 'sdk_rejected' } },
   ]) {
     const bytes = JSON.stringify({ ...base, ...change }) + '\n'; await fs.writeFile(path, bytes);
     const r = fresh(t, s), got = await r.research.get({ jobId: done.jobId });

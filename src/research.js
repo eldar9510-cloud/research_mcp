@@ -706,7 +706,8 @@ function validateStoredStatus(value) {
       (['setup', 'resolving_references'].includes(s.phase) && (s.actualModel || s.modelCalls || s.toolCalls)) ||
       (['investigating', 'validating', 'persisting'].includes(s.phase) && !s.actualModel) ||
       (s.status === 'completed' && (!s.actualModel || !s.modelCalls || s.toolCalls < 2 ||
-        s.modelCalls > s.limits.modelCalls || s.toolCalls > s.limits.toolCalls || s.firstToolFailure)) ||
+        s.modelCalls > s.limits.modelCalls || s.toolCalls > s.limits.toolCalls ||
+        (s.firstToolFailure && (s.firstToolFailure.stage !== 'sdk_start' || s.firstToolFailure.code !== 'sdk_rejected' || s.toolCalls < 3)))) ||
       (s.firstToolFailure && (!s.toolCalls || (s.firstToolFailure.code === 'sdk_rejected' && s.firstToolFailure.stage !== 'sdk_start')))) throw Error('artifact_unavailable');
   const d = s.reportFailure;
   if (d) {
@@ -757,11 +758,14 @@ export async function resolveResearchPartials(workRoot, requested, signal, budge
   return result;
 }
 const liveOwners = new Set();
-function ownerAlive(owner) {
+async function ownerAlive(owner, store) {
   if (!owner || Object.keys(owner).sort().join(',') !== 'pid,token' || !Number.isSafeInteger(owner.pid) || owner.pid <= 0 || !/^[a-f0-9]{32}$/.test(owner.token)) throw Error('artifact_unavailable');
   if (owner.pid === process.pid) return liveOwners.has(owner.token);
-  try { process.kill(owner.pid, 0); return true; }
-  catch (e) { if (e.code === 'ESRCH') return false; return true; } // PID reuse/EPERM conservatively refuse; never relabel known-live work.
+  try { process.kill(owner.pid, 0); }
+  catch (e) { if (e.code === 'ESRCH') return false; }
+  // A different process can observe only exact, flushed instance/root release.
+  // PID reuse/EPERM without that evidence remains conservative refusal.
+  return !await store.ownerReleased(owner);
 }
 const initialStatus = (jobId, startedAt, limits = LIMITS) => ({ ok: true, jobId, status: 'running', phase: 'setup', reason: null,
   startedAt, endedAt: null, requestedModel: MODEL, actualModel: null, limits, modelCalls: 0, toolCalls: 0,
@@ -777,7 +781,7 @@ export function createResearch({ archive, workRoot, createDependencies = ({ sign
   workRoot = resolve(workRoot);
   const store = storeFor(workRoot), jobs = new Map(), token = randomUUID().replaceAll('-', '');
   liveOwners.add(token);
-  let active, closed = false, sibling = false, startupError = false;
+  let active, shutdownPromise, ownsRecords = false, closed = false, sibling = false, startupError = false;
   const snapshot = job => immutable(validateStoredStatus(structuredClone(job.status)));
   function cache(job) {
     while (jobs.size >= 64 && !jobs.has(job.status.jobId)) {
@@ -816,7 +820,7 @@ export function createResearch({ archive, workRoot, createDependencies = ({ sign
       if (!v || Object.keys(v).sort().join(',') !== 'owner,status,version' || v.version !== 1 || v.status.jobId !== id) throw Error('artifact_unavailable');
       running = validateStoredStatus(v.status);
       if (running.status !== 'running') throw Error('artifact_unavailable');
-      if (ownerAlive(v.owner)) throw Error('research_busy');
+      if (await ownerAlive(v.owner, store)) throw Error('research_busy');
       for (const n of await store.states(id)) {
         try {
           const state = validateStoredStatus((await store.read(id, `state-${n}`)).value);
@@ -881,6 +885,7 @@ export function createResearch({ archive, workRoot, createDependencies = ({ sign
           if (sibling || startupError) throw Error('artifact_unavailable');
           await store.prepare(signal);
           await save('request', request, signal);
+          ownsRecords = true;
           await store.write(job.status.jobId, 'running', { version: 1, owner: { pid: process.pid, token }, status: snapshot(job) }, signal);
         },
         saveEvidence, savePlan: (plan, signal) => save('plan', { plan }, signal),
@@ -1001,15 +1006,25 @@ export function createResearch({ archive, workRoot, createDependencies = ({ sign
       }
       return immutable(result());
     },
-    async shutdown() {
-      closed = true;
-      const job = active;
-      if (job) {
-        if (!job.finalizing) job.abort.abort({ status: 'interrupted' });
-        job.stopCheckpoints?.();
-        await job.done;
-      }
-      await startup; liveOwners.delete(token);
+    shutdown() {
+      return shutdownPromise ??= (async () => {
+        closed = true; // Irrevocable: no new reservation, even during receipt I/O.
+        const job = active;
+        if (job) {
+          if (!job.finalizing) job.abort.abort({ status: 'interrupted' });
+          job.stopCheckpoints?.();
+          await job.done;
+        }
+        await startup; liveOwners.delete(token);
+        if (!ownsRecords) return;
+        const release = new AbortController();
+        let timer;
+        try {
+          await Promise.race([store.releaseOwner({ pid: process.pid, token }, release.signal),
+            new Promise(resolve => { timer = setTimeout(() => { release.abort(); resolve(); }, LIMITS.toolTimeoutMs); })]);
+        } catch { /* Failed release remains uncertainty to other processes. */ }
+        finally { release.abort(); clearTimeout(timer); }
+      })();
     },
   };
 }

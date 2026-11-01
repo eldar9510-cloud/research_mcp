@@ -20,7 +20,8 @@ async function connect(t, r, fixture) {
   const log = join(r.root, 'network.log');
   const transport = new StdioClientTransport({ command: process.execPath,
     args: [resolve(fixture ? 'tests/fixtures/research-stdio.mjs' : 'src/stdio.js')], cwd: process.cwd(), stderr: 'pipe',
-    env: { PATH: process.env.PATH ?? '', RESEARCH_ARCHIVE_ROOT: r.archiveRoot, RESEARCH_WORK_ROOT: r.workRoot,
+    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME, PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR,
+      PI_OFFLINE: '1', PI_SKIP_VERSION_CHECK: '1', PI_TELEMETRY: '0', npm_config_offline: 'true', npm_config_update_notifier: 'false', npm_config_audit: 'false', npm_config_fund: 'false', RESEARCH_ARCHIVE_ROOT: r.archiveRoot, RESEARCH_WORK_ROOT: r.workRoot,
       RESEARCH_IMPORT_ROOT: r.importRoot, RESEARCH_TRIPWIRE: log,
       NODE_OPTIONS: `--require=${resolve('tests/research-tripwire.cjs')}` } });
   let stderr = ''; transport.stderr?.on('data', bytes => { stderr += bytes.toString(); });

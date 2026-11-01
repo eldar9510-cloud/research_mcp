@@ -53,7 +53,7 @@ export function runtime(script = steps(), { candidate = model, auth = true, rout
 }
 export async function terminal(research, start) {
   for (let i = 0; i < 2000; i++) {
-    const status = research.get({ jobId: start.jobId });
+    const status = await research.get({ jobId: start.jobId });
     if (status.status !== 'running') return status;
     await new Promise(resolve => setTimeout(resolve, 2));
   }

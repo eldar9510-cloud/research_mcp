@@ -34,7 +34,7 @@ test('prompt start reserves synchronously, busy never queues, status is compact 
   // 500 ms deadline still fails this race if setup never begins.
   assert.equal(await Promise.race([entered.promise.then(() => 'entered'),
     terminal(s.research, initial).then(() => 'terminal')]), 'entered');
-  assert.equal(calls, 1); assert.equal(s.research.get({ jobId: initial.jobId }).actualModel, null);
+  assert.equal(calls, 1); assert.equal((await s.research.get({ jobId: initial.jobId })).actualModel, null);
   release({ modelRuntime: s.f.runtime, adapter: adapter() });
   const done = await terminal(s.research, initial);
   assert.equal(done.status, 'completed'); assert.equal(done.reason, null);
@@ -47,8 +47,9 @@ test('prompt start reserves synchronously, busy never queues, status is compact 
   assert.match(done.jobId, /^job-[a-f0-9]{32}$/); assert.notEqual(done.outputs.proposal.proposalId, done.jobId);
   assert(s.f.trace.every(x => x.reasoning === 'max' && x.maxRetries === 0 && x.transport === 'sse' && x.tools.join(',') === 'research_search,research_fetch'));
   const files = await fs.readdir(join(s.workRoot, 'jobs'));
-  assert.deepEqual(files.sort(), [`${done.jobId}.json`, `${done.jobId}.sources.json`, `${done.jobId}.plan.json`].sort());
-  const saved = JSON.parse(await fs.readFile(join(s.workRoot, done.outputs.evidence), 'utf8'));
+  assert.deepEqual(files.filter(f => !/\.state-[1-9][0-9]?\.json$/.test(f)).sort(), ['.json', '.sources.json', '.plan.json', '.request.json', '.running.json', '.references.json', '.source-1.json', '.output.json'].map(s => done.jobId + s).sort());
+  assert(files.filter(f => /\.state-[1-9][0-9]?\.json$/.test(f)).length <= 32);
+  const saved = JSON.parse(await fs.readFile(join(s.workRoot, done.outputs.evidence), 'utf8')).data;
   assert.equal(saved.evidencePlan, searchStep.args.plan); assert.equal(saved.sources[0].excerpt, TEXT);
   assert.doesNotMatch(JSON.stringify(saved), /Transient API|synthetic-only-placeholder|thinking|messages|snippet/);
   assert.deepEqual(await fs.readdir(s.archiveRoot), []);
@@ -140,8 +141,8 @@ test('runtime shutdown aborts promptly, never resumes, and refuses later starts'
   const start = s.research.start(INPUT);
   while (!signal) await new Promise(resolve => setTimeout(resolve, 2));
   await s.research.shutdown();
-  const done = s.research.get({ jobId: start.jobId });
-  assert.equal(done.status, 'cancelled'); assert.equal(done.reason, 'shutdown'); assert.equal(signal.aborted, true);
+  const done = await s.research.get({ jobId: start.jobId });
+  assert.equal(done.status, 'interrupted'); assert.equal(done.reason, 'shutdown'); assert.equal(signal.aborted, true);
   assert.equal(f.trace.length, 1); assert.throws(() => s.research.start(INPUT), /research_shutdown/);
 });
 
@@ -212,7 +213,7 @@ test('tool timeout/abort bounds uncooperative adapters; late completion cannot c
   const snapshot = JSON.stringify(done);
   release([{ url: URL, title: 'late-private-marker', snippet: 'late' }]);
   await new Promise(resolve => setTimeout(resolve, 10));
-  assert.equal(JSON.stringify(s.research.get({ jobId: done.jobId })), snapshot); assert.equal(s.f.trace.length, 1);
+  assert.equal(JSON.stringify(await s.research.get({ jobId: done.jobId })), snapshot); assert.equal(s.f.trace.length, 1);
 });
 
 test('malicious independently fetched page cannot enable privileged tools or become authorization', async t => {
@@ -271,7 +272,7 @@ test('selected accepted revision, exact content, warning/citation context are bo
   assert.equal(done.status, 'completed'); assert(done.referenceBytes > 0); assert(done.toolOutputBytes > done.referenceBytes);
   const prompt = JSON.stringify(s.f.trace[0].context.messages);
   assert.match(prompt, /Dated comparison/); assert.match(prompt, /guide/); assert.match(prompt, /freshlyVerified/);
-  const saved = JSON.parse(await fs.readFile(join(s.workRoot, done.outputs.evidence), 'utf8'));
+  const saved = JSON.parse(await fs.readFile(join(s.workRoot, done.outputs.evidence), 'utf8')).data;
   assert.equal(saved.references[0].content, 'Supports people [guide].');
   assert.equal(saved.references[0].freshlyVerified, false);
 });
@@ -298,7 +299,7 @@ test('public evidence plan is on disk before search; incomplete jobs retain inde
     const files = await fs.readdir(join(r.workRoot, 'jobs'));
     const planned = files.find(name => name.endsWith('.plan.json'));
     assert(planned, 'persist plan BEFORE the external adapter is called');
-    assert.deepEqual(JSON.parse(await fs.readFile(join(r.workRoot, 'jobs', planned), 'utf8')), { plan: searchStep.args.plan });
+    assert.deepEqual(JSON.parse(await fs.readFile(join(r.workRoot, 'jobs', planned), 'utf8')).data, { plan: searchStep.args.plan });
     return adapter().search();
   } }) });
   r = s;
@@ -340,20 +341,20 @@ test('terminal record I/O cannot hold deadline/shutdown indefinitely or write af
     release({ writeFile() { writes++; }, sync() { writes++; }, close() { closed++; } });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(writes, 0); assert.equal(closed, 1);
-    assert.equal(JSON.stringify(s.research.get({ jobId: done.jobId })), snapshot);
+    assert.equal(JSON.stringify(await s.research.get({ jobId: done.jobId })), snapshot);
   } finally { mock.mock.restore(); syncBuiltinESMExports(); }
 });
 
-test('status capacity is finite, old terminal records remain on disk, exact IDs only, no restart/resume', async t => {
+test('old terminal records reload after cache eviction/restart, exact IDs only, no restart/resume', async t => {
   const s = await setup(t, { dependencies: async () => { throw new Error('synthetic setup refusal'); } });
   let first;
   for (let i = 0; i < 65; i++) {
     const done = await s.run(); first ??= done.jobId; assert.equal(done.status, 'failed');
   }
-  assert.throws(() => s.research.get({ jobId: first }), /not_found/);
-  assert.throws(() => s.research.get({ jobId: '../escape' }), /invalid_input/);
-  assert.throws(() => s.research.get({ jobId: first, transcript: true }), /invalid_input/);
+  assert.equal((await s.research.get({ jobId: first })).status, 'failed');
+  await assert.rejects(s.research.get({ jobId: '../escape' }), /invalid_input/);
+  await assert.rejects(s.research.get({ jobId: first, transcript: true }), /invalid_input/);
   assert((await fs.readdir(join(s.workRoot, 'jobs'))).includes(`${first}.json`));
   const restarted = createResearch({ archive: s.a, workRoot: s.workRoot, createDependencies: async () => { throw new Error('must not run'); } });
-  assert.throws(() => restarted.get({ jobId: first }), /not_found/); await restarted.shutdown();
+  assert.equal((await restarted.get({ jobId: first })).status, 'failed'); await restarted.shutdown();
 });

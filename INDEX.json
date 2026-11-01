@@ -318,6 +318,78 @@
       ]
     },
     {
+      "id": "iec-coverage-opus5-edition-source",
+      "path": "reports/iec-coverage-opus5-edition-source.md",
+      "revision": "3a011ebec1d0735f498e4c5fd2bbf1d361f9f7e9c950ea3ba487228e223588ee",
+      "sourceDigest": "49eb6e25212795d1ccdd50b10702febab57c033606e3409ed909a6546f591347",
+      "size": 10642,
+      "mtimeMs": 1793575875000,
+      "title": "Opus-5 IEC edition survey with low-confidence entries",
+      "question": "Which editions did the independent IEC survey report, and which entries remained disputed or unconfirmed?",
+      "scope": "Source B in 35-category comparison; historical web-verification claims are source provenance, not scout verification or compliance evidence.",
+      "summary": "Edition-oriented matrix with substantial low-confidence notes and compact source references reused by the master.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:31:15.387Z",
+      "updated_at": "2026-11-01T23:31:15.387Z",
+      "imported_at": "2026-11-01T20:38:59.727Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "Opus-5"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Headline claims all primary numbers/editions verified, but same report lists unconfirmed/inferred entries."
+        },
+        {
+          "code": "report_warning",
+          "message": "Freshest/live-verified are historical source claims, not this scout checking sources."
+        },
+        {
+          "code": "report_warning",
+          "message": "Condensed identifiers must not be repaired into invented URLs."
+        },
+        {
+          "code": "report_warning",
+          "message": "Master basename resolves to selected master."
+        },
+        {
+          "code": "report_warning",
+          "message": "IEC publication IDs and compact publisher/domain references are not complete portable URLs and were not dereferenced."
+        },
+        {
+          "code": "report_warning",
+          "message": "No attributable human author established; no obvious credential pattern."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "mayr-dual-brake-checker-wiring",
       "path": "reports/mayr-dual-brake-checker-wiring.md",
       "revision": "95600cb26d8692c2bc644e368967b59036ada3ffe276c44157a3259b89365cfc",

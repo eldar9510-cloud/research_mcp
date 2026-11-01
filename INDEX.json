@@ -859,6 +859,82 @@
       ]
     },
     {
+      "id": "sphinx-nine-technical-documentation",
+      "path": "reports/sphinx-nine-technical-documentation.md",
+      "revision": "1b75d2e0c53dd0d0f3eed67aa4f022311c411d7eb79b5dba1903c65f053f5aa2",
+      "sourceDigest": "cb8fc05c180e413dec0ff1c6ef916e5082b440fa6139ecef7a054627a62448e9",
+      "size": 34205,
+      "mtimeMs": 1793575959000,
+      "title": "Sphinx9.1 technical-documentation capabilities and migration",
+      "question": "Which Sphinx9.1 builders, directives and extensions fit technical documentation, and which older tutorial assumptions no longer apply?",
+      "scope": "Documentation/source research for Sphinx9.1/Python3.12/sphinx-click6.2; explicitly not execution-proven.",
+      "summary": "Surveys document generation and version changes, flags stale tutorial output and proposes official example ports.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:32:39.595Z",
+      "updated_at": "2026-11-01T23:32:39.595Z",
+      "imported_at": "2026-11-01T20:39:00.622Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Per-section official URLs; copied quickstart-template and tutorial examples require attribution/rights review."
+        },
+        {
+          "code": "report_warning",
+          "message": "Environment and internal TECH_DOC/PLC context; tutorial author example is not report authorship."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unresolved_citation",
+          "message": "Unresolved or ambiguous imported reference or footnote; no target was invented."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "system-block-diagram-tool-evaluation",
       "path": "reports/system-block-diagram-tool-evaluation.md",
       "revision": "6ee259e40799e41374284a02e9e2af924ab1e65262790e95d6187b09ccdac887",

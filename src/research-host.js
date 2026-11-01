@@ -5,7 +5,7 @@ import { isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MODEL, normalizeResearchRequest, resolveResearchPartials, resolveResearchReferences } from './research.js';
 import { createArchive } from './archive.js';
-import { retainedSourceUrls } from './retained-sources.js';
+import { retainedSourceUrls, sourceRequestIdentity } from './retained-sources.js';
 
 const serverScript = fileURLToPath(new URL('./stdio.js', import.meta.url));
 const rootKeys = ['RESEARCH_ARCHIVE_ROOT', 'RESEARCH_WORK_ROOT', 'RESEARCH_IMPORT_ROOT'];
@@ -108,7 +108,7 @@ async function selectedMaterial(target, params, signal) {
   const partials = await resolveResearchPartials(target.roots.RESEARCH_WORK_ROOT, params.partials, signal, params.limits.toolOutputBytes - used);
   if (used + (partials.length ? Buffer.byteLength(JSON.stringify(partials)) : 0) > params.limits.toolOutputBytes) denied();
   const knownSourceUrls = prior ? retainedSourceUrls(prior.knownSourceUrls, references, partials) : [];
-  if (params.mode === 'improve' && params.improvement.oldSourceChecks.some(check => !knownSourceUrls.includes(check.url))) denied();
+  if (params.mode === 'improve' && params.improvement.oldSourceChecks.some(check => !knownSourceUrls.includes(sourceRequestIdentity(check.url)))) denied();
   return { references, partials, base, canonicalBase, knownSourceUrls };
 }
 

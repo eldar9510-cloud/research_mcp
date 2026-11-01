@@ -69,6 +69,62 @@ for (const [label, retained, url] of [
   });
 }
 
+// Permission identities may ignore an empty fragment, never transport/search
+// spelling or the exact requested passage. Observe the rendered public ledger too.
+async function artifactValue(research, jobId, artifact) {
+  let args = { jobId, artifact }, text = '';
+  while (args) {
+    const page = await research.readArtifact(args);
+    text += page.content.text; args = page.continuation;
+  }
+  return JSON.parse(text).data;
+}
+for (const [retained, requested, fetched] of [
+  [URL + '#', URL + '#', URL + '#'],
+  [URL, URL + '#', URL],
+  [URL + '#', URL, URL + '#'],
+  [URL + '?#', URL + '?', URL + '?#'],
+]) for (const allowed of [false, true]) test(`empty-fragment identity: retained=${retained}, requested=${allowed ? requested : 'NONE'}, fetched=${fetched}`, async t => {
+  const s = await fixture(t, { body: `Earlier source [old].\n[old]: ${retained}\n` });
+  if (allowed) s.request.improvement.oldSourceChecks = [
+    { url: requested, offset: 0, claim: 'Inspect only the prior definition.' },
+    { url: fetched, contains: 'A distinct unperformed passage', claim: 'A separate requested comparison.' },
+  ];
+  const h = await host(t, s); assert.equal((await h.prepare()).status, 'prepared');
+  assert.equal(await h.gate.authorize({ serverName: 'repair', args: s.request }, h.ctx), 'allow_once');
+  let fetches = 0;
+  const { research } = investigator(t, s, [steps()[0], { tool: 'research_fetch', args: { url: fetched } }, steps()[2]], {
+    search: async () => [{ url: fetched, title: 'Synthetic source', snippet: 'No network' }],
+    fetch: async (...args) => { fetches++; return adapter().fetch(...args); },
+  });
+  const done = await terminal(research, research.start(s.request));
+  assert.equal(fetches, allowed ? 1 : 0); assert.equal(done.status, allowed ? 'completed' : 'failed');
+  if (!allowed) { assert.equal(done.firstToolFailure?.code, 'old_source_check_not_requested'); return; }
+  const output = await artifactValue(research, done.jobId, 'output');
+  const ledger = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(output)[1]).oldSourceChecks;
+  assert.equal(ledger[0].url, requested); assert.equal(ledger[0].claim, s.request.improvement.oldSourceChecks[0].claim);
+  assert.match(ledger[0].status, /^requested passage actually inspected/);
+  assert.equal(ledger[0].inspectedPassages.length, 1);
+  assert.equal(ledger[1].status, 'unchecked; requested check was not performed');
+  assert.deepEqual(ledger[1].inspectedPassages, []);
+  const source = await artifactValue(research, done.jobId, 'source-1');
+  assert.equal(source.url, fetched); assert.equal(source.offset, 0);
+  assert.equal(ledger[0].inspectedPassages[0].accessedAt, source.accessedAt);
+  assert.equal(ledger[0].inspectedPassages[0].passageSha256, source.visibleTextSha256);
+});
+
+for (const mismatch of ['searched spelling', 'selector']) test('empty-fragment comparison does not widen exact ' + mismatch, async t => {
+  const s = await fixture(t, { body: `Earlier source ${URL}#\n` });
+  s.request.improvement.oldSourceChecks = [{ url: URL, offset: mismatch === 'selector' ? 1 : 0, claim: 'Inspect this particular passage only.' }];
+  const fetched = URL + '#'; let fetches = 0;
+  const { research } = investigator(t, s, [steps()[0], { tool: 'research_fetch', args: { url: fetched } }, steps()[2]], {
+    search: async () => [{ url: mismatch === 'selector' ? fetched : URL, title: 'Synthetic source', snippet: 'No network' }],
+    fetch: async (...args) => { fetches++; return adapter().fetch(...args); },
+  });
+  const done = await terminal(research, research.start(s.request)); assert.equal(fetches, 0);
+  assert.equal(done.firstToolFailure?.code, mismatch === 'selector' ? 'old_source_check_not_requested' : 'source_not_searched');
+});
+
 for (const [retained, requested] of [
   ['https://@www.w3.org', 'https://www.w3.org/'],
   ['https://@www.w3.org/WAI/../WAI/fundamentals/accessibility-intro/', URL],
@@ -88,6 +144,68 @@ for (const [retained, requested] of [
   t.after(() => research.shutdown());
   const done = await terminal(research, research.start(s.request));
   assert.equal(done.reason, 'reference_context_unavailable'); assert.equal(setup, 0);
+});
+
+for (const [opening, closing] of [['"', '"'], ['`', '`'], ['<', '>']]) test('quoted prose keeps its complete bare-query target: ' + opening, async t => {
+  const url = URL + '?', s = await fixture(t, { body: JSON.stringify({ note: `Earlier source ${opening}${url}${closing}. Original evidence remains dated.` }) });
+  s.request.improvement.oldSourceChecks = [{ url, offset: 0, claim: 'Inspect only this particular prior definition.' }];
+  const h = await host(t, s); assert.equal((await h.prepare()).status, 'prepared');
+  assert.equal(await h.gate.authorize({ serverName: 'repair', args: s.request }, h.ctx), 'allow_once');
+  const { research } = investigator(t, s, [steps()[0], { tool: 'research_fetch', args: { url } }, steps()[2]], {
+    search: async () => [{ url, title: 'Synthetic quoted source', snippet: 'No network' }],
+  });
+  assert.equal((await terminal(research, research.start(s.request))).status, 'completed');
+});
+
+for (const [name, body, target] of [
+  ['escaped query', String.raw`{"source":"https://www.w3.org/a\u003Ftopic=prior"}`, 'https://www.w3.org/a'],
+  ['escaped userinfo', String.raw`{"source":"https://www.w3.org\u0040other.org/path"}`, 'https://www.w3.org/'],
+  ['escaped malformed Unicode', String.raw`{"source":"https://www.w3.org/a\ud800"}`, 'https://www.w3.org/a'],
+  ['escaped DEL', String.raw`{"source":"https://www.w3.org/a\u007fb"}`, 'https://www.w3.org/a'],
+  ['escaped apostrophe prefix', String.raw`{"source":"https://www.w3.org/people/O\u0027Brien"}`, 'https://www.w3.org/people/O'],
+  ...['\\', '`', '"', '<', '\n', '\t'].map(byte => [
+    'decoded raw query ' + JSON.stringify(byte), JSON.stringify({ source: URL + '?' + byte + 'old' }), URL + '?',
+  ]),
+  ['decoded path control', JSON.stringify({ source: URL + '\nold' }), URL],
+  ['prose raw query', `Earlier source ${URL}?\\old\n`, URL + '?'],
+  ['partial JSON raw query', `{"source":"${URL}?\\old`, URL + '?'],
+]) test('complete identities cannot manufacture prefix membership: ' + name, async t => {
+  const s = await fixture(t, { body });
+  s.request.improvement.oldSourceChecks = [{ url: target, offset: 0, claim: 'Inspect only the exact prior definition.' }];
+  const known = await s.archive.inspectImprovementBase(s.request.improvement.base);
+  const h = await host(t, s); let prepared = false;
+  try { await h.prepare(); prepared = true; } catch (error) { assert.match(error.message, /research_not_prepared/); }
+  let setups = 0, fetches = 0;
+  const f = runtime([steps()[0], { tool: 'research_fetch', args: { url: target } }, steps()[2]]);
+  const research = createResearch({ archive: s.archive, workRoot: s.workRoot, createDependencies: async () => {
+    setups++; return { modelRuntime: f.runtime, adapter: adapter({
+      search: async () => [{ url: target, title: 'Synthetic prefix', snippet: 'No network' }],
+      fetch: async (...args) => { fetches++; return adapter().fetch(...args); },
+    }) };
+  } });
+  t.after(() => research.shutdown());
+  const done = await terminal(research, research.start(s.request));
+  assert.deepEqual({ member: known.knownSourceUrls.includes(target), prepared, setups, fetches, status: done.status, reason: done.reason },
+    { member: false, prepared: false, setups: 0, fetches: 0, status: 'incomplete', reason: 'reference_context_unavailable' });
+});
+
+for (const [body, url] of [
+  [String.raw`{"source":"https://www.w3.org/people/O\u0027Brien"}`, "https://www.w3.org/people/O'Brien"],
+  [String.raw`{"source":"https:\/\/www.w3.org\/prior"}`, 'https://www.w3.org/prior'],
+  [String.raw`"https://www.w3.or\u0067/prior"`, 'https://www.w3.org/prior'],
+]) for (const requested of [false, true]) test(`complete JSON decoded value stays usable, requested=${requested}: ${body}`, async t => {
+  const s = await fixture(t, { body });
+  if (requested) s.request.improvement.oldSourceChecks = [{ url, offset: 0, claim: 'Inspect only the exact prior definition.' }];
+  const h = await host(t, s); assert.equal((await h.prepare()).status, 'prepared');
+  assert.equal(await h.gate.authorize({ serverName: 'repair', args: s.request }, h.ctx), 'allow_once');
+  let fetches = 0;
+  const { research } = investigator(t, s, [steps()[0], { tool: 'research_fetch', args: { url } }, steps()[2]], {
+    search: async () => [{ url, title: 'Synthetic decoded source', snippet: 'No network' }],
+    fetch: async (...args) => { fetches++; return adapter().fetch(...args); },
+  });
+  const done = await terminal(research, research.start(s.request));
+  assert.equal(fetches, requested ? 1 : 0); assert.equal(done.status, requested ? 'completed' : 'failed');
+  if (!requested) assert.equal(done.firstToolFailure?.code, 'old_source_check_not_requested');
 });
 
 test('decoded malformed Unicode cannot be replaced into an eligible source identity', async t => {

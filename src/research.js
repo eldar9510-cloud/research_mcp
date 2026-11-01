@@ -3,7 +3,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { JOB_ID, MATERIALS, researchArtifacts, sha256 } from './research-artifacts.js';
 import { z } from 'zod';
 import { createBraveAdapter, sourceUrl } from './brave.js';
-import { retainedSourceUrls } from './retained-sources.js';
+import { retainedSourceUrls, sourceRequestIdentity } from './retained-sources.js';
 import { types } from 'node:util';
 import { createAgentSession, createExtensionRuntime, ModelRuntime, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
@@ -203,7 +203,7 @@ async function runInvestigation({ question, scope, language, references, partial
             if (operationSignal.aborted || finished || stopped()) throw new Error('cancelled');
             sources.push(source);
             if (improvement) for (const [index, check] of improvement.oldSourceChecks.entries()) {
-              if (check.url === source.url && (check.contains !== undefined ? args.contains === check.contains && args.offset === undefined :
+              if (sourceRequestIdentity(check.url) === sourceRequestIdentity(source.url) && (check.contains !== undefined ? args.contains === check.contains && args.offset === undefined :
                   args.contains === undefined && (args.offset ?? 0) === check.offset))
                 inspectedOldChecks.set(index, [...(inspectedOldChecks.get(index) ?? []), source]);
             }
@@ -258,8 +258,9 @@ async function runInvestigation({ question, scope, language, references, partial
       async ({ url, offset, contains }, toolSignal, stage) => {
         const safeUrl = sourceUrl(url);
         if (!searchSucceeded || !searched.has(safeUrl) || (offset !== undefined && contains !== undefined)) throw new Error('source_not_searched');
-        if (improvement && knownOldUrls.has(safeUrl) && !improvement.oldSourceChecks.some(check =>
-          check.url === safeUrl && (check.contains !== undefined ? contains === check.contains && offset === undefined :
+        const identity = sourceRequestIdentity(safeUrl);
+        if (improvement && knownOldUrls.has(identity) && !improvement.oldSourceChecks.some(check =>
+          sourceRequestIdentity(check.url) === identity && (check.contains !== undefined ? contains === check.contains && offset === undefined :
             contains === undefined && (offset ?? 0) === check.offset))) throw new Error('old_source_check_not_requested');
         stage('adapter');
         const page = await adapter.fetch(safeUrl, { signal: toolSignal, limits, offset, contains });
@@ -307,7 +308,7 @@ async function runInvestigation({ question, scope, language, references, partial
       toolBytes = referenceBytes;
       if (improvement) {
         for (const url of retainedSourceUrls(priorBase.knownSourceUrls, selectedReferences, selectedPartials)) knownOldUrls.add(url);
-        if (improvement.oldSourceChecks.some(check => !knownOldUrls.has(check.url))) throw Error('reference_context_unavailable');
+        if (improvement.oldSourceChecks.some(check => !knownOldUrls.has(sourceRequestIdentity(check.url)))) throw Error('reference_context_unavailable');
       }
       await wait(saveReferences({ references: selectedReferences, partials: selectedPartials }, combined));
       if (stopped()) return stopped();

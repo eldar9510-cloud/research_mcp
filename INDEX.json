@@ -577,6 +577,74 @@
           "message": "Imported claims and publication rights have not been checked."
         }
       ]
+    },
+    {
+      "id": "system-block-diagram-tool-evaluation",
+      "path": "reports/system-block-diagram-tool-evaluation.md",
+      "revision": "6ee259e40799e41374284a02e9e2af924ab1e65262790e95d6187b09ccdac887",
+      "sourceDigest": "8925b971c8eeb2ba23665dab4863888c2f30fc7d7602c5180db2e2153b108e12",
+      "size": 12535,
+      "mtimeMs": 1793575906000,
+      "title": "System block-diagram tool evaluation and Mermaid-first recommendation",
+      "question": "Which diagram format balances simple owner editing and recoverable architecture for a four-column car lift?",
+      "scope": "Functional architecture, not terminal wiring; Mermaid/D2/draw.io/Graphviz in safety/power/network/I-O context.",
+      "summary": "Recommends Mermaid-first with draw.io initial-editing fallback, retaining comparative tradeoffs and a proposed diagram plan.",
+      "researched_at": "2026-07-21",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:31:46.474Z",
+      "updated_at": "2026-11-01T23:31:46.474Z",
+      "imported_at": "2026-11-01T20:38:59.891Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Inventory and safety-chain context not validated engineering evidence."
+        },
+        {
+          "code": "report_warning",
+          "message": "Thin external citation context; tool capabilities not verified."
+        },
+        {
+          "code": "report_warning",
+          "message": "Different constraints from fixed-coordinate HTML survey; no supersession inferred."
+        },
+        {
+          "code": "report_warning",
+          "message": "Uninspected io_allocation.csv, bom.csv, car_lift.qet sheets 01-04."
+        },
+        {
+          "code": "report_warning",
+          "message": "Proposed electronics/diagrams paths and future diagram artifacts."
+        },
+        {
+          "code": "report_warning",
+          "message": "Component inventory, machine architecture and topology."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
     }
   ]
 }

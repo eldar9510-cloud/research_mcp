@@ -139,6 +139,10 @@ export function researchArtifacts(workRoot, { screen, validateRequest, validateS
       }
       return states.sort((a, b) => a - b);
     },
-    async status(id) { return validateStatus((await read(id, 'record')).value); },
+    async status(id) {
+      const status = validateStatus((await read(id, 'record')).value);
+      if (status.jobId !== id) fail();
+      return status;
+    },
   };
 }

@@ -291,7 +291,8 @@ export function createBraveAdapter({ token, fetchImpl = globalThis.fetch, lookup
   }
   return {
     async search(query, { signal, limits }) {
-      if (typeof query !== 'string' || !query.trim() || !query.isWellFormed() || query.length > 180) reject('invalid_query');
+      if (typeof query !== 'string' || !query.trim() || !query.isWellFormed() || query.length > 180 ||
+          query.trim().split(/\s+/u).length > 75) reject('invalid_query');
       const operation = AbortSignal.any([signal ?? new AbortController().signal, AbortSignal.timeout(limits.toolTimeoutMs)]);
       const url = new URL('https://api.search.brave.com/res/v1/web/search');
       url.searchParams.set('q', query);
@@ -300,17 +301,20 @@ export function createBraveAdapter({ token, fetchImpl = globalThis.fetch, lookup
       if (body.includes(token)) reject('search_response_invalid'); // A reflected credential is never model context.
       let data;
       try { data = JSON.parse(body); } catch { reject('search_response_invalid'); }
-      if (!Array.isArray(data?.web?.results)) reject('search_response_invalid');
+      const results = data?.web === null ? [] : data?.web?.results;
+      if (!Array.isArray(results)) reject('search_response_invalid');
       const found = [];
-      for (const item of data.web.results) {
-        if (!item || typeof item.url !== 'string' || typeof item.title !== 'string' || typeof item.description !== 'string') reject('search_response_invalid');
+      for (const item of results) {
+        if (!item || typeof item.url !== 'string' || typeof item.title !== 'string' ||
+            (typeof item.description !== 'string' && item.description !== null)) reject('search_response_invalid');
+        const description = item.description ?? ''; // Documented nullable string, not an optional field.
         // JSON escapes are decoded now. Refuse the response, never sanitize a
         // reflected credential into apparently trustworthy search evidence.
-        if ([item.url, item.title, item.description].some(value => value.includes(token))) reject('search_response_invalid');
+        if ([item.url, item.title, description].some(value => value.includes(token))) reject('search_response_invalid');
         let safe;
         try { safe = sourceUrl(item.url); } catch { continue; }
         if (found.length < limits.searchResults && !found.some(hit => hit.url === safe))
-          found.push({ url: safe, title: item.title.slice(0, 120), snippet: item.description.slice(0, 180) });
+          found.push({ url: safe, title: item.title.slice(0, 120), snippet: description.slice(0, 180) });
       }
       checkAbort(operation);
       for (const hit of found) searched.add(hit.url);

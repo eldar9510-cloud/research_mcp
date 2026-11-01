@@ -38,6 +38,59 @@ test('generalized Brave query and pinned HTTPS source use separate headers and n
   assert.doesNotMatch(JSON.stringify(page), /synthetic-search-token|Transient/);
 });
 
+test('Brave accepts 75 whitespace-delimited words but rejects 76 before transport, retaining the 180-character cap', async () => {
+  for (const separator of [' ', '\t', '\n', '\u2003']) {
+    const http = httpFixture(), calls = [];
+    const a = factory(http, { fetchImpl: async url => { calls.push(url); return json([]); } });
+    const query = words => ` ${Array(words).fill('a').join(separator)} `;
+    assert(query(76).length <= 180);
+    assert.deepEqual(await a.search(query(75), OPTIONS), []);
+    assert.equal(new globalThis.URL(calls[0]).searchParams.get('q'), query(75));
+    await assert.rejects(() => a.search(query(76), OPTIONS), safe('invalid_query'));
+    await assert.rejects(() => a.search('a'.repeat(181), OPTIONS), safe('invalid_query'));
+    assert.equal(calls.length, 1);
+    assert.deepEqual(await a.search('a'.repeat(180), OPTIONS), []);
+    assert.equal(calls.length, 2); assert.equal(http.calls.length, 0); assert.equal(http.dns.length, 0);
+  }
+});
+
+test('documented null web yields no results and registers no source', async () => {
+  const http = httpFixture(); let calls = 0;
+  const a = factory(http, { fetchImpl: async () => { calls++; return new Response('{"web":null}', { headers: { 'content-type': 'application/json' } }); } });
+  assert.deepEqual(await a.search('synthetic null web', OPTIONS), []);
+  await assert.rejects(() => a.fetch(URL, OPTIONS), safe('source_not_searched'));
+  assert.equal(calls, 1); assert.equal(http.calls.length, 0); assert.equal(http.dns.length, 0);
+});
+
+test('documented null description becomes an empty transient snippet, with ordinary string and unsafe URL controls', async () => {
+  for (const description of [null, '', 'Synthetic snippet']) {
+    const http = httpFixture();
+    const a = factory(http, { fetchImpl: async () => json([{ ...hit(), description }, { ...hit('https://127.0.0.1/'), description }]) });
+    assert.deepEqual(await a.search('synthetic nullable description', OPTIONS), [{ url: URL, title: 'Transient title', snippet: description ?? '' }]);
+    await assert.rejects(() => a.fetch('https://127.0.0.1/', OPTIONS), safe('source_out_of_scope'));
+    assert.equal(http.calls.length, 0); assert.equal(http.dns.length, 0);
+    assert.equal((await a.fetch(URL, OPTIONS)).text, TEXT);
+  }
+});
+
+test('nullable fields do not admit missing or malformed required fields or register earlier valid hits', async () => {
+  const invalidItems = [null, [], {}];
+  for (const field of ['url', 'title', 'description']) {
+    const omitted = { ...hit() }; delete omitted[field]; invalidItems.push(omitted);
+    for (const value of [false, 0, {}, [], ...(field === 'description' ? [] : [null])]) invalidItems.push({ ...hit(), [field]: value });
+  }
+  const invalid = [null, false, 0, '', [], {}, ...[false, 0, '', []].map(web => ({ web })),
+    { web: {} }, ...[null, false, 0, '', {}].map(results => ({ web: { results } })),
+    ...invalidItems.map(item => ({ web: { results: [hit(), item] } }))];
+  for (const data of invalid) {
+    const http = httpFixture(); let calls = 0;
+    const a = factory(http, { fetchImpl: async () => { calls++; return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } }); } });
+    await assert.rejects(() => a.search('synthetic malformed response', OPTIONS), safe('search_response_invalid'));
+    await assert.rejects(() => a.fetch(URL, OPTIONS), safe('source_not_searched'));
+    assert.equal(calls, 1); assert.equal(http.calls.length, 0); assert.equal(http.dns.length, 0);
+  }
+});
+
 test('only exact successfully searched canonical public HTTPS sources may be fetched', async () => {
   const http = httpFixture(), a = factory(http);
   await assert.rejects(() => a.fetch(URL, OPTIONS), /source_not_searched/);
@@ -123,6 +176,51 @@ test('visible HTML extraction, later passage selection and bounded raw/text trun
     await assert.rejects(() => missing.fetch(URL, { ...OPTIONS, ...selection }), /source_passage_not_found|invalid_passage_selection/);
 });
 
+test('source selection matches case-sensitive normalized text, refusing mismatches and beyond-text offsets without fallback', async () => {
+  // Original synthetic HTML, not a retained live response or search snippet.
+  const body = '<html><body><p>Atlas\t  Lantern\nMarker</p><p>Original synthetic ending.</p></body></html>';
+  const normalized = 'Atlas Lantern Marker Original synthetic ending.';
+  const http = httpFixture({ body, type: 'text/html' });
+  const a = factory(http); await a.search('synthetic source selection', OPTIONS);
+  assert.equal((await a.fetch(URL, { ...OPTIONS, offset: 0 })).text, normalized);
+  assert.equal(http.calls.length, 1);
+  assert((await a.fetch(URL, { ...OPTIONS, contains: 'Lantern Marker' })).text.includes('Lantern Marker'));
+  assert.equal(http.calls.length, 2);
+  for (const selection of [{ contains: 'lantern Marker' }, { contains: 'Lantern\nMarker' }, { offset: normalized.length }, { offset: normalized.length + 1 }]) {
+    const before = http.calls.length;
+    await assert.rejects(() => a.fetch(URL, { ...OPTIONS, ...selection }), safe('source_passage_not_found'));
+    assert.equal(http.calls.length, before + 1); assert.equal(http.dns.length, before + 1);
+  }
+});
+
+test('a bounded source prefix excludes a later target even when that target exists in the original synthetic body', async () => {
+  const target = 'Later Synthetic Target', body = 'Prelude '.repeat(20) + target;
+  const http = httpFixture({ body }), a = factory(http);
+  await a.search('synthetic prefix selection', OPTIONS);
+  const capped = { limits: { ...LIMITS, sourceResponseBytes: 100, sourceTextChars: 40 } };
+  const first = await a.fetch(URL, { ...capped, offset: 0 });
+  assert.equal(first.rawTruncated, true); assert.equal(first.truncated, true); assert.equal(first.nextOffset, 40);
+  assert(!first.text.includes(target)); assert.equal(http.calls.length, 1);
+  await assert.rejects(() => a.fetch(URL, { ...capped, contains: target }), safe('source_passage_not_found'));
+  assert.equal(http.calls.length, 2); assert.equal(http.dns.length, 2);
+  assert((await a.fetch(URL, { ...OPTIONS, contains: target })).text.includes(target));
+  assert.equal(http.calls.length, 3); // Explicit uncapped control, never an automatic retry.
+});
+
+test('offset zero followed by the returned nextOffset reaches a target within the source cap', async () => {
+  const target = 'Synthetic window target', body = 'a'.repeat(40) + target + ' ending';
+  const http = httpFixture({ body }), a = factory(http);
+  await a.search('synthetic continuation', OPTIONS);
+  const options = { limits: { ...LIMITS, sourceResponseBytes: 100, sourceTextChars: 40 } };
+  const first = await a.fetch(URL, { ...options, offset: 0 });
+  assert.equal(first.text, 'a'.repeat(40)); assert.equal(first.offset, 0); assert.equal(first.nextOffset, 40);
+  assert.equal(first.rawTruncated, false); assert.equal(first.truncated, true); assert.equal(http.calls.length, 1);
+  const next = await a.fetch(URL, { ...options, offset: first.nextOffset });
+  assert.equal(next.offset, first.nextOffset); assert(next.text.includes(target));
+  assert.equal(next.nextOffset, undefined); assert.equal(next.truncated, false);
+  assert.equal(http.calls.length, 2); assert.equal(http.dns.length, 2);
+});
+
 test('adversarial HTML lexer remains linear and timers stay serviceable', async t => {
   for (const body of ['<a' + '-a'.repeat(22000), '<div title="' + '<'.repeat(50000), '<script>' + 'x'.repeat(50000),
     '<template><div></span>must not expose</div></template>']) {
@@ -140,6 +238,29 @@ test('reflected host search credentials never become tool output or source evide
   await assert.rejects(() => a.search('W3C', OPTIONS), safe('search_response_invalid'));
   const http = httpFixture({ body: `Public page ${TOKEN}` });
   await assert.rejects(() => fetched(http), safe('tool_invalid_output'));
+});
+
+test('raw and JSON-decoded reflected tokens in every returned hit field are refused before clipping, filtering or source registration', async () => {
+  const escaped = [...TOKEN].map(char => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`).join('');
+  for (const field of ['url', 'title', 'description']) {
+    const tainted = { ...hit(), description: null, [field]: field === 'url' ? `${URL}${TOKEN}` : 'x'.repeat(field === 'title' ? 120 : 180) + TOKEN };
+    for (const results of [[hit(), tainted], [hit(), hit(`${URL}two`), hit(`${URL}three`), tainted],
+      [hit(), { ...tainted, url: field === 'url' ? `https://127.0.0.1/${TOKEN}` : 'https://127.0.0.1/' }]]) {
+      for (const decoded of [false, true]) {
+        const http = httpFixture(); let calls = 0;
+        const raw = JSON.stringify({ web: { results } });
+        const body = decoded ? raw.replaceAll(TOKEN, escaped) : raw;
+        assert.equal(body.includes(TOKEN), !decoded);
+        const a = factory(http, { fetchImpl: async () => { calls++; return new Response(body, { headers: { 'content-type': 'application/json' } }); } });
+        await assert.rejects(() => a.search('synthetic reflection control', OPTIONS), safe('search_response_invalid'));
+        await assert.rejects(() => a.fetch(URL, OPTIONS), safe('source_not_searched'));
+        assert.equal(calls, 1); assert.equal(http.calls.length, 0); assert.equal(http.dns.length, 0);
+      }
+    }
+  }
+  // A null web section must not bypass the existing whole-body reflection check.
+  const a = createBraveAdapter({ token: TOKEN, fetchImpl: async () => new Response(JSON.stringify({ web: null, marker: TOKEN }), { headers: { 'content-type': 'application/json' } }) });
+  await assert.rejects(() => a.search('synthetic null reflection', OPTIONS), safe('search_response_invalid'));
 });
 
 test('Brave complete JSON byte cap, strict schema and safe empty results', async () => {

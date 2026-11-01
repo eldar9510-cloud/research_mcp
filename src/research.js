@@ -231,7 +231,7 @@ async function runInvestigation({ question, scope, language, references, signal 
           url: sourceUrl(r.url), title: plainText(r.title, 120), snippet: plainText(r.snippet, 180),
         })) };
       }),
-    tool('research_fetch', 'Inspect a searched public HTTPS URL, optionally selecting a later passage by contains OR offset. No redirects. Returns offsets/digests/access time and explicit continuation.',
+    tool('research_fetch', 'Inspect a searched public HTTPS URL using contains OR offset. contains must be an exact, case-sensitive substring of whitespace-normalized visible text; offset indexes that text, not response bytes. For paging, start at offset 0 then use returned nextOffset; do not guess selectors from search snippets. Only the bounded source prefix is available; missing selections fail without fallback or retry. No redirects. Returns offsets/digests/access time and explicit continuation.',
       Type.Object({ url: Type.String({ minLength: 1, maxLength: 512 }),
         offset: Type.Optional(Type.Integer({ minimum: 0, maximum: LIMITS.sourceResponseBytes })),
         contains: Type.Optional(Type.String({ minLength: 1, maxLength: 80 })) }, { additionalProperties: false }),

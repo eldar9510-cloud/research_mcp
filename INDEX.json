@@ -579,6 +579,78 @@
       ]
     },
     {
+      "id": "plc-simulation-scl-runtime-comparison",
+      "path": "reports/plc-simulation-scl-runtime-comparison.md",
+      "revision": "bfb3b41150e7ea8802d9d0d8dd244f688216c3fc3967d281b3f889a8987f1437",
+      "sourceDigest": "16824e790ffe15df6f0c4f2e17b62ebbb12cea8a7ccc193501548839134ac99e",
+      "size": 12079,
+      "mtimeMs": 1793575916000,
+      "title": "Open-source PLC simulation versus Siemens SCL validation",
+      "question": "Which runtime/mock strategy can exercise SCL-like logic, and what vendor validation does it fail to supply?",
+      "scope": "OpenPLC/GOPLC/AWLSim/Beremiz/PyLC comparison for testing outside TIA; not proof of exact Siemens SCL compilation or safety behavior.",
+      "summary": "Separates standard ST runtimes from SCL and recommends Python mocks first, with dual-syntax and TIA-validation limits.",
+      "researched_at": "2026-07-21",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:31:56.021Z",
+      "updated_at": "2026-11-01T23:31:56.021Z",
+      "imported_at": "2026-11-01T20:39:00.005Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Mocks/alternative ST runtimes do not validate TIA compilation or exact SCL semantics."
+        },
+        {
+          "code": "report_warning",
+          "message": "Maturity, license and syntax-overlap claims unchecked."
+        },
+        {
+          "code": "report_warning",
+          "message": "Research-input labels are not invented report authorship."
+        },
+        {
+          "code": "report_warning",
+          "message": "Tickets #001A/#010a/#010, CONTROL_LOGIC.md and fb_weighing context uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Only source-provided links retained; none fetched/repaired."
+        },
+        {
+          "code": "report_warning",
+          "message": "Local ticket and control-logic workflow context."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-stated research inputs: Gemini research, Claude web research; these do not establish report authorship or producing platform."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "system-block-diagram-tool-evaluation",
       "path": "reports/system-block-diagram-tool-evaluation.md",
       "revision": "6ee259e40799e41374284a02e9e2af924ab1e65262790e95d6187b09ccdac887",

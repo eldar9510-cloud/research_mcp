@@ -17,7 +17,7 @@ export function retainedSourceUrls(...material) {
     if (/^\s*[\[{]/.test(value)) {
       try { pending.push(JSON.parse(value)); } catch { /* A byte selection need not be whole JSON. */ }
     }
-    for (const match of value.matchAll(/https:\/\/[^\s<>"'`\\]+/gi)) {
+    for (const match of value.matchAll(/https:\/\/[^\s<>"`\\]+/gi)) {
       // Retain the literal candidate AND the conservative prose-delimited one.
       // Never trim query bytes (even a sole punctuation character) into eligibility.
       const raw = match[0], candidates = new Set([raw]);
@@ -34,14 +34,30 @@ export function retainedSourceUrls(...material) {
           while (balance[token.at(-1)] < 0) { balance[token.at(-1)]++; token = token.slice(0, -1); }
           candidates.add(token);
         }
+        // A quote inside a path is literal, including a terminal quote. Only an
+        // actual opening prose quote permits an additional unwrapped candidate.
+        // Keep the raw candidate too: the closing quote can itself be path data.
+        if (value[match.index - 1] === "'") for (const token of [...candidates]) {
+          if (token.endsWith("'")) candidates.add(token.slice(0, -1));
+        }
       }
       for (const token of candidates) {
-        // Only scheme/host case, explicit default HTTPS port and fragment identity
-        // are normalized. Preserve query/auth/path bytes: sourceUrl must still
-        // accept the resulting exact canonical identity. No URL-parser aliasing.
-        const canonical = token.split('#', 1)[0].replace(/^https:\/\/([^/?#]+)/i,
-          (_all, authority) => 'https://' + authority.toLowerCase().replace(/:443$/, ''));
-        try { urls.add(sourceUrl(canonical)); } catch { continue; }
+        const input = token.split('#', 1)[0];
+        // Check raw syntax BEFORE parsing: URL would erase an empty @ userinfo
+        // marker. Query bytes, including a bare ?, must also remain exact.
+        if (!input.isWellFormed() || /[\x00-\x20\x7f\\]/.test(input)) continue;
+        const parts = /^https:\/\/([^/?]+)(.*)$/i.exec(input);
+        if (!parts || parts[1].includes('@')) continue;
+        const authority = parts[1].toLowerCase().replace(/:443$/, '');
+        const query = input.includes('?') ? input.slice(input.indexOf('?')) : '';
+        try {
+          // The same URL client serializes an empty path and removes dot segments.
+          // Do not infer host aliases/IDNA/other port spellings or contact a server.
+          const canonical = new URL('https://' + authority + parts[2]);
+          if (canonical.host !== authority ||
+              (canonical.href.includes('?') ? canonical.href.slice(canonical.href.indexOf('?')) : '') !== query) continue;
+          urls.add(sourceUrl(canonical.href));
+        } catch { continue; }
         if (urls.size > 256) throw Error('retained_source_limit');
       }
     }

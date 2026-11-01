@@ -42,6 +42,66 @@ async function host(t, s) {
   return { gate, ctx, prepare };
 }
 
+for (const [label, retained, url] of [
+  ['literal apostrophe', "https://www.w3.org/people/O'Brien", "https://www.w3.org/people/O'Brien"],
+  ['literal terminal apostrophe', "https://www.w3.org/people/James'", "https://www.w3.org/people/James'"],
+  ['single-quoted apostrophe path', "'https://www.w3.org/people/O'Brien'", "https://www.w3.org/people/O'Brien"],
+  ['single-quoted prose wrapper', `'${URL}'`, URL],
+  ['literal quoted-path candidate', "'https://www.w3.org/people/James'", "https://www.w3.org/people/James'"],
+  ['literal empty query marker', URL + '?', URL + '?'],
+  ['empty authority path', 'https://www.w3.org', 'https://www.w3.org/'],
+  ['dot segments', 'https://www.w3.org/WAI/../WAI/fundamentals/accessibility-intro/', URL],
+]) for (const requested of [false, true]) {
+  test(`retained ${label}: exact host/backend check requested=${requested}`, async t => {
+    const s = await fixture(t, { body: `Earlier evidence [old].\n[old]: ${retained}\n` });
+    if (requested) s.request.improvement.oldSourceChecks = [{ url, offset: 0, claim: 'Inspect only this exact prior definition.' }];
+    const h = await host(t, s); assert.equal((await h.prepare()).status, 'prepared');
+    assert.equal(await h.gate.authorize({ serverName: 'repair', args: s.request }, h.ctx), 'allow_once');
+    let fetches = 0;
+    const { research } = investigator(t, s, [steps()[0], { tool: 'research_fetch', args: { url } }, steps()[2]], {
+      search: async () => [{ url, title: 'Synthetic canonical source', snippet: 'No network' }],
+      fetch: async (...args) => { fetches++; return adapter().fetch(...args); },
+    });
+    const done = await terminal(research, research.start(s.request));
+    assert.equal(fetches, requested ? 1 : 0);
+    assert.equal(done.status, requested ? 'completed' : 'failed');
+    if (!requested) assert.equal(done.firstToolFailure?.code, 'old_source_check_not_requested');
+  });
+}
+
+for (const [retained, requested] of [
+  ['https://@www.w3.org', 'https://www.w3.org/'],
+  ['https://@www.w3.org/WAI/../WAI/fundamentals/accessibility-intro/', URL],
+  ['https://reader@www.w3.org/WAI/../WAI/fundamentals/accessibility-intro/', URL],
+  ['https://www.w3.org?', 'https://www.w3.org/'],
+  ['https://www.w3.org/WAI/../WAI/fundamentals/accessibility-intro/?;', URL],
+  ["https://www.w3.org/people/O'Brien", 'https://www.w3.org/people/O'],
+  ["https://www.w3.org/people/James'", 'https://www.w3.org/people/James'],
+  ['https://www.w3.org:0443/WAI/../WAI/fundamentals/accessibility-intro/', URL],
+]) test('raw identity bytes cannot authorize a different requested target: ' + retained, async t => {
+  const s = await fixture(t, { body: `Earlier evidence [old].\n[old]: ${retained}\n` });
+  s.request.improvement.oldSourceChecks = [{ url: requested, offset: 0, claim: 'Inspect only the selected prior definition.' }];
+  const h = await host(t, s); await assert.rejects(h.prepare(), /research_not_prepared/);
+  let setup = 0;
+  const research = createResearch({ archive: s.archive, workRoot: s.workRoot,
+    createDependencies: async () => { setup++; throw Error('Unexpected setup'); } });
+  t.after(() => research.shutdown());
+  const done = await terminal(research, research.start(s.request));
+  assert.equal(done.reason, 'reference_context_unavailable'); assert.equal(setup, 0);
+});
+
+test('decoded malformed Unicode cannot be replaced into an eligible source identity', async t => {
+  const s = await fixture(t, { body: JSON.stringify({ source: 'https://www.w3.org/people/\ud800' }) });
+  s.request.improvement.oldSourceChecks = [{ url: 'https://www.w3.org/people/%EF%BF%BD', offset: 0, claim: 'Inspect only this prior definition.' }];
+  const h = await host(t, s); await assert.rejects(h.prepare(), /research_not_prepared/);
+  let setup = 0;
+  const research = createResearch({ archive: s.archive, workRoot: s.workRoot,
+    createDependencies: async () => { setup++; throw Error('Unexpected setup'); } });
+  t.after(() => research.shutdown());
+  const done = await terminal(research, research.start(s.request));
+  assert.equal(done.reason, 'reference_context_unavailable'); assert.equal(setup, 0);
+});
+
 for (const selector of [{ offset: 0 }, { offset: 1 }, { contains: 'different passage' }]) {
   test('metadata warning source identity requires the exact requested selector: ' + JSON.stringify(selector), async t => {
     const retained = URL.replace('https://www.w3.org/', 'HTTPS://WWW.W3.ORG:443/') + '#prior';

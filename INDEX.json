@@ -2,6 +2,86 @@
   "version": 1,
   "entries": [
     {
+      "id": "deterministic-nested-diagram-html",
+      "path": "reports/deterministic-nested-diagram-html.md",
+      "revision": "dee9e5c43aabb0aa09bb752759374714302fb544153ee45ab48e2a0c425dbac7",
+      "sourceDigest": "37b15a95044f88ccd2f73e50dfddc354ea8e65d73143c138430fb2359b655fde",
+      "size": 6938,
+      "mtimeMs": 1793575830000,
+      "title": "Deterministic nested block-diagram tooling for standalone HTML",
+      "question": "How can a dense nested engineering diagram preserve fixed positions and orthogonal routing in self-contained HTML/SVG?",
+      "scope": "About 90 nodes, 190 typed edges, nested containers and author-controlled coordinates; ranking synthesis, not an implemented diagram.",
+      "summary": "Ranks layout-spec-to-SVG, JointJS, D2/TALA and maxGraph; contrasts fixed placement with auto-layout and flags TALA licensing.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:30:30.096Z",
+      "updated_at": "2026-11-01T23:30:30.096Z",
+      "imported_at": "2026-11-01T20:38:59.469Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Question date not promoted to researched_at."
+        },
+        {
+          "code": "report_warning",
+          "message": "Tool capabilities/license claims not independently checked."
+        },
+        {
+          "code": "report_warning",
+          "message": "Research interaction identifier needs publication review."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-provided public links unchecked."
+        },
+        {
+          "code": "report_warning",
+          "message": "Existing Python/Graphviz generator and column/family design not inspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Research interaction identifier present; no value copied."
+        },
+        {
+          "code": "report_warning",
+          "message": "Local project layout/edge-count context."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-stated generating agent label: deep-research-preview-04-2026; underlying model/platform remain unknown unless explicitly attributed."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "historical-cad-fea-mcp-toolchains",
       "path": "reports/historical-cad-fea-mcp-toolchains.md",
       "revision": "ced5a2bca8bbd87ca0c6339f67a47e9bfb49c0b7949d76a2b60a3d51cce16766",

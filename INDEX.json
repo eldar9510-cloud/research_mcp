@@ -1003,6 +1003,82 @@
       ]
     },
     {
+      "id": "scram-mef-xml-gates-probabilities",
+      "path": "reports/scram-mef-xml-gates-probabilities.md",
+      "revision": "843659a1f43f8fe0f66d886c7283eaaa10e59cae4352526fb4acfed5b21c0126",
+      "sourceDigest": "76ce92cf004096dd8ad0e54bf9fcc465ba2cdceeced7016cdd339f71118caa19",
+      "size": 23216,
+      "mtimeMs": 1793575983000,
+      "title": "SCRAM Open-PSA MEF XML gates and probability semantics",
+      "question": "How must SCRAM MEF XML define gates/events/probabilities, and what can validation miss?",
+      "scope": "Historical0.16.2 schema/binary investigation of XML inputs and small probability templates; not safety/compliance or PFHd certification.",
+      "summary": "Explains required structures and retains the distinction between schema validation and analysis-time checks.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:33:03.407Z",
+      "updated_at": "2026-11-01T23:33:03.407Z",
+      "imported_at": "2026-11-01T20:39:01.296Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Local schema/source/example/test paths only; zero URL matches. Dependencies unopened; portable evidence unresolved."
+        },
+        {
+          "code": "report_warning",
+          "message": "Internal installation/template paths and safety-chain context; no safety claim validated."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unresolved_citation",
+          "message": "Unresolved or ambiguous imported reference or footnote; no target was invented."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "sphinx-nine-technical-documentation",
       "path": "reports/sphinx-nine-technical-documentation.md",
       "revision": "1b75d2e0c53dd0d0f3eed67aa4f022311c411d7eb79b5dba1903c65f053f5aa2",

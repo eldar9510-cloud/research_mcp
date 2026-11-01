@@ -82,6 +82,74 @@
       ]
     },
     {
+      "id": "efficalc-auditable-calculation-reports",
+      "path": "reports/efficalc-auditable-calculation-reports.md",
+      "revision": "d4c550d609633ff695ea54512e9947fc068ef56649db127385e3138facaff421",
+      "sourceDigest": "5fc70889d61e36470a8283159f39a9bc301803b2f75f70861e55736b59725160",
+      "size": 14664,
+      "mtimeMs": 1793575942000,
+      "title": "efficalc 1.2.7 calculation reporting and limits",
+      "question": "What calculation/report pattern and output paths does efficalc provide, and what unit and rendering limits matter?",
+      "scope": "Historical Python3.12 package/source study; HTML/MathJax, overrides, result checks and PDF limits; not current execution.",
+      "summary": "Explains Calculation/Input/ReportBuilder, display-only units, pass/fail checks and browser-print PDF boundary.",
+      "researched_at": "2026-08-13",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:32:22.357Z",
+      "updated_at": "2026-11-01T23:32:22.357Z",
+      "imported_at": "2026-11-01T20:39:00.435Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Upstream URLs plus local package, proven-script and production-calculation paths; local dependencies uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Absolute environment/tmp paths and internal production calculations."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "frenic-lm2a-ups-rescue-topology",
       "path": "reports/frenic-lm2a-ups-rescue-topology.md",
       "revision": "9136a872f8100a460df7c540219b38b94b837d4febf6c3967b71fb9a229b8071",

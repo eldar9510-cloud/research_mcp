@@ -3,6 +3,7 @@ import { constants } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep, dirname, parse } from 'node:path';
 import { z } from 'zod';
+import { reportDiff } from './research-diff.js';
 
 const id = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100);
 const label = z.string().min(1).max(512).refine(s => s.trim().length > 0 && !/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(s));
@@ -31,6 +32,12 @@ const engineMetadata = metadataSchema(z.object({ kind: z.literal('engine_generat
   author: z.literal('unknown'), model: z.literal('openai-codex/gpt-6.1-sol/max') }).strict());
 const proposalId = /^proposal-[a-f0-9]{32}$/;
 const digestPattern = /^[a-f0-9]{64}$/;
+const baseSchema = z.object({ reportId: id, expectedRevision: z.string().regex(digestPattern) }).strict();
+const operationSchema = z.object({ kind: z.literal('improvement'), base: baseSchema,
+  disposition: z.enum(['same_report', 'linked_report']), jobId: z.string().regex(/^job-[a-f0-9]{32}$/),
+  requestDigest: z.string().regex(digestPattern), linkedRelation: z.enum(['extends', 'corrects', 'replaces']).optional(),
+  baseNotice: label.optional() }).strict().refine(o => o.disposition === 'same_report' ? !o.linkedRelation && !o.baseNotice :
+    ['corrects', 'replaces'].includes(o.linkedRelation) ? !!o.baseNotice : !o.baseNotice);
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 const MAX_RECORD_BYTES = 24 * 1024; // One bound for serialized publication and subsequent reads.
 const MAX_WARNINGS = 40; // 32 relationships plus eight bounded import diagnostics.
@@ -306,7 +313,7 @@ function safeRecord(m) {
   const { created_at, updated_at, imported_at, ...input } = m;
   const generated = input.origin?.kind === 'engine_generated';
   return (generated ? engineMetadata : importMetadata).safeParse(input).success &&
-    (!generated || (input.researched_at !== null && input.last_improved_at === null && imported_at === null)) &&
+    (!generated || (input.researched_at !== null && imported_at === null)) &&
     [created_at, updated_at, ...(generated ? [] : [imported_at])].every(x =>
       typeof x === 'string' && !Number.isNaN(Date.parse(x)) && new Date(x).toISOString() === x);
 }
@@ -355,17 +362,58 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     try { saved = JSON.parse(utf8(raw)); } catch { fail('archive_unavailable', 'Proposal metadata is invalid'); }
     if (!saved || saved.state !== 'LOCAL_UNACCEPTED' || saved.proposalId !== pid || !digestPattern.test(saved.sourceDigest ?? '') ||
         !digestPattern.test(saved.revision ?? '') || !safeStoredMetadata(saved.metadata) ||
+        (saved.operation !== undefined && !operationSchema.safeParse(saved.operation).success) ||
         !Array.isArray(saved.warnings) || saved.warnings.length > MAX_WARNINGS ||
         !saved.warnings.every(w => w && typeof w.code === 'string' && /^[a-z_]{1,48}$/.test(w.code) &&
           typeof w.message === 'string' && Buffer.byteLength(w.message, 'utf8') <= 512)) fail('archive_unavailable', 'Proposal metadata is invalid');
     let body;
     try { body = await readRegular(p.body, MAX_SOURCE_BYTES); } catch (e) { if (e.code === 'not_found') fail('archive_unavailable', 'Proposal body is missing'); throw e; }
-    if (sha(body) !== saved.sourceDigest || revision(saved.metadata, saved.sourceDigest) !== saved.revision) fail('revision_conflict', 'Stored proposal revision changed');
+    if (sha(body) !== saved.sourceDigest || revision(saved.metadata, saved.sourceDigest, saved.operation) !== saved.revision) fail('revision_conflict', 'Stored proposal revision changed');
     const text = utf8(body);
     return { saved, body, text };
   }
   function safeStoredMetadata(m) { return safeRecord(m); }
-  function revision(metadata, sourceDigest) { return sha(JSON.stringify({ metadata, sourceDigest })); }
+  function revision(metadata, sourceDigest, operation) { return sha(JSON.stringify({ metadata, sourceDigest, ...(operation ? { operation } : {}) })); }
+  // Local full-base inspection is never model context. Callers receive only metadata/known URLs.
+  async function improvementBase(base) {
+    if (!baseSchema.safeParse(base).success) fail('invalid_input', 'Exact improvement base required');
+    await readAccepted({ ...base, expectedRevision: base.expectedRevision });
+    const loaded = await acceptedFile(base.reportId);
+    if (sha(loaded.bytes) !== base.expectedRevision) fail('revision_conflict', 'Improvement base changed');
+    return loaded;
+  }
+  async function inspectImprovementBase(base) {
+    const loaded = await improvementBase(base);
+    const urls = [...new Set(loaded.text.match(/https:\/\/[^\s<>"\\\]\[)]+/g) ?? [])];
+    if (urls.length > 256) fail('limit_reached', 'Known-source set exceeds finite improvement bound');
+    return { metadata: loaded.saved.metadata, revision: base.expectedRevision, knownSourceUrls: urls };
+  }
+  async function createImprovementProposal(input) {
+    const { base, disposition, jobId, requestDigest, text, summary, improvedAt, question, scope, language, signal, linkedRelation, baseNotice } = input;
+    const operation = operationSchema.safeParse({ kind: 'improvement', base, disposition, jobId, requestDigest,
+      ...(linkedRelation ? { linkedRelation } : {}), ...(baseNotice ? { baseNotice } : {}) });
+    if (!operation.success || !date.safeParse(improvedAt).success || !label.safeParse(summary).success ||
+        typeof text !== 'string' || !text.isWellFormed() || !text.trim() || Buffer.byteLength(text) > 65536)
+      fail('invalid_input', 'Invalid bounded improvement');
+    signal?.throwIfAborted();
+    const prior = await improvementBase(base);
+    const m = prior.saved.metadata;
+    if (linkedRelation === 'replaces' && m.superseded_by) fail('revision_conflict', 'Existing successor cannot be silently replaced');
+    if (disposition === 'same_report' && (question !== m.question || scope !== m.scope || language !== m.language))
+      fail('invalid_input', 'Same-report question, scope and language must remain exact; clarify linked intent first');
+    const metadata = disposition === 'same_report' ? { ...m, summary, last_improved_at: improvedAt } : {
+      id: `research-${jobId.slice(4)}`, title: summary, summary, question, scope, language,
+      researched_at: improvedAt, last_improved_at: null,
+      origin: { kind: 'engine_generated', platform: 'Pi SDK', author: 'unknown', model: 'openai-codex/gpt-6.1-sol/max' },
+      related_reports: [{ id: base.reportId, relationship: linkedRelation ?? 'extends' }], warnings: [], superseded_by: null,
+    };
+    const warning = `Scoped improvement ${improvedAt}, ${jobId}; base ${base.reportId}@${base.expectedRevision}. Read the dated improvement limitations and exact selected ranges before relying on old conclusions; retained material is NOT freshly verified.`;
+    metadata.warnings = [...metadata.warnings, warning];
+    const { created_at, updated_at, imported_at, ...fields } = metadata;
+    safeMetadata(fields, metadata.origin.kind === 'engine_generated');
+    const bytes = disposition === 'same_report' ? Buffer.concat([prior.body, Buffer.from('\n\n' + text)]) : Buffer.from(text);
+    return persistProposal(metadata, bytes, signal, operation.data);
+  }
   async function existing() {
     const entries = await fs.readdir(proposals);
     if (entries.length > MAX_PROPOSALS * 2) fail('limit_reached', 'Proposal scan limit reached');
@@ -417,23 +465,25 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     if (bytes.length > MAX_SOURCE_BYTES) fail('limit_reached', 'Report exceeds storage limit');
     return persistProposal(m, bytes, signal);
   }
-  async function persistProposal(m, bytes, signal) {
+  async function persistProposal(m, bytes, signal, operation) {
     signal?.throwIfAborted();
     if (!bytes.length) fail('invalid_input', 'Empty report is not a finished report');
+    if (bytes.length > MAX_SOURCE_BYTES) fail('limit_reached', 'Report exceeds storage limit');
     const bodyText = utf8(bytes);
     if (looksLikeCredential(bodyText) || looksLikeCredential(JSON.stringify(m))) fail('invalid_input', 'Report or metadata appears to contain credentials; remove them before import');
     const sourceDigest = sha(bytes);
-    const proposalId = `proposal-${sha(`${m.id}\0${sourceDigest}`).slice(0, 32)}`;
+    const proposalId = `proposal-${sha(`${m.id}\0${sourceDigest}${operation ? '\0' + JSON.stringify(operation) : ''}`).slice(0, 32)}`;
     const current = await existing();
-    if (current.some(item => item.metadata.id === m.id && item.sourceDigest !== sourceDigest)) fail('revision_conflict', 'Report ID already has a different proposal; explicit revision required');
-    await checkAccepted(m.id);
+    if (!operation && current.some(item => !item.operation && item.metadata.id === m.id && item.sourceDigest !== sourceDigest)) fail('revision_conflict', 'Report ID already has a different proposal; explicit revision required');
+    if (operation?.disposition === 'same_report') await improvementBase(operation.base);
+    else await checkAccepted(m.id);
     if (m.origin.kind === 'engine_generated') {
       const { index } = await catalogue({ first: true });
       if (index.entries.some(item => item.sourceDigest === sourceDigest))
         fail('duplicate_content', 'Identical content is already accepted; no new engine provenance was assigned');
     }
     signal?.throwIfAborted();
-    const same = current.find(item => item.sourceDigest === sourceDigest);
+    const same = current.find(item => item.sourceDigest === sourceDigest && !operation);
     if (same && (same.metadata.origin.kind !== m.origin.kind || m.origin.kind === 'engine_generated'))
       fail('duplicate_content', 'Identical content already exists; no new provenance was assigned');
     if (same) {
@@ -444,9 +494,10 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     }
     const timestamp = now();
     if (typeof timestamp !== 'string' || Number.isNaN(Date.parse(timestamp)) || new Date(timestamp).toISOString() !== timestamp) fail('archive_unavailable', 'Archive clock is invalid');
-    const record = { ...m, created_at: timestamp, updated_at: timestamp,
+    const record = operation?.disposition === 'same_report' ? { ...m } : { ...m, created_at: timestamp, updated_at: timestamp,
       imported_at: m.origin.kind === 'imported' ? timestamp : null };
-    const saved = { proposalId, state: 'LOCAL_UNACCEPTED', sourceDigest, revision: revision(record, sourceDigest), metadata: record, warnings: warningsFor(m, bodyText) };
+    const saved = { proposalId, state: 'LOCAL_UNACCEPTED', sourceDigest, revision: revision(record, sourceDigest, operation), metadata: record,
+      warnings: warningsFor(m, bodyText), ...(operation ? { operation } : {}) };
     const serialized = JSON.stringify(saved, null, 2) + '\n';
     if (Buffer.byteLength(serialized, 'utf8') > MAX_RECORD_BYTES) fail('limit_reached', 'Proposed metadata and warnings exceed storage limit');
     const p = paths(proposalId);
@@ -527,6 +578,7 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     return {
       ok: true, state: saved.state, ...(key.proposalId ? { proposalId: key.proposalId } : {}), reportId: saved.metadata.id,
       revision: saved.revision, sourceDigest: saved.sourceDigest, metadata: saved.metadata,
+      ...(saved.operation ? { operation: saved.operation } : {}),
       warnings: saved.warnings, warningContext, notices: notices.map(({ startChar, endChar, ...notice }) => notice), selection: range,
       content: { text: excerpt, startByte: offset, endByte: end, totalBytes: body.length, truncated: nextOffset !== null, nextOffset },
       citations: slice, citationsTruncated: nextReferenceOffset !== null,
@@ -664,40 +716,78 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     return page({ saved: { ...saved, revision: entry.revision, sourceDigest: saved.sourceDigest,
       state: 'LOCAL_ACCEPTED_UNPUBLISHED', warnings: entry.warnings }, body, text }, args, pageBytes, { reportId: args.reportId });
   }
-  async function reviewProposal({ proposalId, acceptedAt = now(), expectedBaseRevision = null, includeFiles = false }) {
+  async function reviewProposal({ proposalId, acceptedAt = now(), expectedBaseRevision, includeFiles = false }) {
     await ready();
     cleanId(proposalId);
-    if (expectedBaseRevision !== null) fail('revision_conflict', 'Revisions of accepted reports are not supported in this slice');
     if (typeof acceptedAt !== 'string' || Number.isNaN(Date.parse(acceptedAt)) || Date.parse(acceptedAt) < 0 ||
         new Date(acceptedAt).toISOString() !== acceptedAt) fail('invalid_input', 'Invalid acceptance timestamp');
     const { saved, body } = await load(proposalId);
+    const operation = saved.operation;
+    const boundBase = operation?.base.expectedRevision ?? null;
+    if (expectedBaseRevision !== undefined && expectedBaseRevision !== boundBase) fail('revision_conflict', 'Proposal base differs from review');
+    expectedBaseRevision = boundBase;
+    const prior = operation ? await improvementBase(operation.base) : null;
+    const replacing = operation?.disposition === 'same_report';
     const { index, revision: expectedCatalogueRevision } = await catalogue({ first: true });
-    await checkAccepted(saved.metadata.id);
+    if (!replacing) await checkAccepted(saved.metadata.id);
     if (index.entries.some(entry => entry.sourceDigest === saved.sourceDigest))
       fail('duplicate_content', 'Identical content already accepted; inspect the existing report instead');
-    const metadata = { ...saved.metadata, created_at: acceptedAt, updated_at: acceptedAt };
+    const metadata = { ...saved.metadata, created_at: replacing ? prior.saved.metadata.created_at : acceptedAt, updated_at: acceptedAt };
+    if (replacing) {
+      for (const field of ['id', 'researched_at', 'origin', 'created_at', 'imported_at', 'question', 'scope', 'language', 'related_reports', 'superseded_by'])
+        if (JSON.stringify(metadata[field]) !== JSON.stringify(prior.saved.metadata[field])) fail('revision_conflict', 'Revision provenance or scope changed');
+      if (!prior.saved.metadata.warnings.every(w => metadata.warnings.includes(w))) fail('revision_conflict', 'Inherited warnings changed');
+    }
     const stored = { format: 1, metadata, warnings: saved.warnings, sourceDigest: saved.sourceDigest, proposalRevision: saved.revision };
     const header = Buffer.byteLength(JSON.stringify(stored, null, 2));
     if (header > MAX_RECORD_BYTES) fail('limit_reached', 'Accepted report header exceeds 24 KiB limit');
     const bytes = reportBytes(stored, body);
     if (bytes.length > MAX_REPORT_BYTES) fail('limit_reached', 'Accepted report exceeds storage limit');
-    const changedFiles = [`reports/${metadata.id}.md`, 'INDEX.json'];
+    const affected = operation?.baseNotice ? {
+      path: `reports/${operation.base.reportId}.md`, before: prior.bytes,
+      metadata: { ...prior.saved.metadata, updated_at: acceptedAt,
+        warnings: [...prior.saved.metadata.warnings, `${operation.linkedRelation === 'replaces' ? 'Replacement' : 'Correction'} notice: ${operation.baseNotice} See ${metadata.id}; original evidence was not blanket-refreshed.`],
+        superseded_by: operation.linkedRelation === 'replaces' ? metadata.id : prior.saved.metadata.superseded_by },
+    } : null;
+    if (affected) {
+      if (operation.linkedRelation === 'replaces' && prior.saved.metadata.superseded_by) fail('revision_conflict', 'Existing successor cannot be silently replaced');
+      const { created_at, updated_at, imported_at, ...input } = affected.metadata;
+      safeMetadata(input, input.origin.kind === 'engine_generated');
+      const notice = `\n\n## ${operation.linkedRelation === 'replaces' ? 'Replacement' : 'Correction'} notice ${acceptedAt.slice(0, 10)}\n\n` +
+        `Requested affected-record notice; substantive changed evidence is in [${metadata.id}](./${metadata.id}.md). Prior bytes remain historical, NOT freshly verified.\n\n` +
+        '```json\n' + JSON.stringify({ baseRevision: operation.base.expectedRevision, notice: operation.baseNotice, contributor: 'openai-codex/gpt-6.1-sol/max',
+          successor: affected.metadata.superseded_by }, null, 2).replaceAll('`', '\\u0060') + '\n```\n';
+      const body = Buffer.concat([prior.body, Buffer.from(notice)]);
+      if (body.length > MAX_SOURCE_BYTES) fail('limit_reached', 'Affected report exceeds storage bound');
+      const record = { format: 1, metadata: affected.metadata, sourceDigest: sha(body), warnings: warningsFor(affected.metadata, utf8(body)), proposalRevision: saved.revision };
+      if (Buffer.byteLength(JSON.stringify(record, null, 2)) > MAX_RECORD_BYTES) fail('limit_reached', 'Affected metadata exceeds storage bound');
+      affected.content = reportBytes(record, body); affected.record = record;
+    }
+    const changedFiles = [`reports/${metadata.id}.md`, ...(affected ? [affected.path] : []), 'INDEX.json'];
     // Whole-second mtime is reproducible on supported filesystems, making the
     // derived catalogue's exact bytes reviewable *before* acceptance writes.
     const reportMtimeMs = Math.floor(Date.parse(acceptedAt) / 1000) * 1000;
     const entry = entryFor(stored, sha(bytes), bytes.length, reportMtimeMs);
-    const next = { version: 1, entries: [...index.entries, entry].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0) };
+    const next = { version: 1, entries: [...index.entries.filter(e => (!replacing || e.id !== metadata.id) && (!affected || e.id !== operation.base.reportId)), entry,
+      ...(affected ? [entryFor(affected.record, sha(affected.content), affected.content.length, reportMtimeMs)] : [])].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0) };
     const catalogueContent = indexBytes(next);
     if (catalogueContent.length > MAX_INDEX_BYTES) fail('limit_reached', 'Catalogue exceeds 8 MiB; inspect report metadata');
     const review = { proposalId, expectedRevision: saved.revision, expectedBaseRevision, acceptedAt,
+      ...(operation ? { operation } : {}),
+      ...(affected ? { affectedReports: [{ reportId: operation.base.reportId, expectedBaseRevision: operation.base.expectedRevision,
+        reportRevision: sha(affected.content), sourceDigest: affected.record.sourceDigest }] } : {}),
       expectedCatalogueRevision, reportId: metadata.id, reportRevision: sha(bytes), sourceDigest: saved.sourceDigest,
       catalogueRevision: sha(catalogueContent), reportMtimeMs, changedFiles, archiveRoot: archive };
     return { ok: true, status: 'review', review: { ...review, reviewDigest: sha(JSON.stringify(review)) },
       // Host-only opt-in; never sent by the MCP review registration.
-      ...(includeFiles ? { files: [{ path: changedFiles[0], content: bytes },
-        { path: changedFiles[1], content: catalogueContent, before: expectedCatalogueRevision === null ? Buffer.alloc(0) : indexBytes(index) }] } : {}),
+      diffRead: { proposalId, expectedRevision: saved.revision, expectedBaseRevision, acceptedAt,
+        expectedReviewDigest: sha(JSON.stringify(review)), offset: 0 },
+      ...(includeFiles ? { files: [{ path: changedFiles[0], content: bytes, before: replacing ? prior.bytes : Buffer.alloc(0) },
+        ...(affected ? [{ path: affected.path, content: affected.content, before: affected.before }] : []),
+        { path: 'INDEX.json', content: catalogueContent, before: expectedCatalogueRevision === null ? Buffer.alloc(0) : indexBytes(index) }] } : {}),
       metadata, warnings: [...metadata.warnings.map(message => ({ code: 'report_warning', message })), ...saved.warnings],
-      changeNote: 'New unpublished report and derived catalogue entry; original source and proposal unchanged. Review full body via read_research before approval.',
+      changeNote: replacing ? 'Base-bound scoped revision; original proposal and source unchanged. Read COMPLETE report/catalogue diff before approval.' :
+        'New unpublished linked or original report and derived catalogue entry; source and proposal unchanged. Read COMPLETE diff before approval.',
       catalogueEntriesBefore: index.entries.length };
   }
   async function replaceIndex(index) {
@@ -724,25 +814,46 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     const { review } = result;
     if (review.expectedRevision !== expectedRevision || review.expectedCatalogueRevision !== expectedCatalogueRevision ||
         review.reviewDigest !== expectedReviewDigest) fail('revision_conflict', 'Review changed; inspect and approve a new review');
-    const bytes = result.files[0].content;
-    const next = JSON.parse(result.files[1].content.toString('utf8'));
+    const next = JSON.parse(result.files.at(-1).content.toString('utf8'));
     let linked = false;
     try {
       await writeCheckpoint('before_report');
       await noSymlinks(reports, true);
       await fs.mkdir(reports).catch(e => { if (e.code !== 'EEXIST') throw e; });
       await noSymlinks(reports);
-      await publishFile(join(reports, `${review.reportId}.md`), bytes);
-      linked = true;
-      await fs.utimes(join(reports, `${review.reportId}.md`), review.reportMtimeMs / 1000, review.reportMtimeMs / 1000);
-      const reportHandle = await fs.open(join(reports, `${review.reportId}.md`), constants.O_RDONLY);
-      try { await reportHandle.sync(); } finally { await reportHandle.close(); }
+      // Revalidate AFTER the injectable checkpoint and before any report write.
+      const current = await reviewProposal({ proposalId, acceptedAt, expectedBaseRevision, includeFiles: false });
+      if (current.review.reviewDigest !== review.reviewDigest) fail('revision_conflict', 'Review changed immediately before report write');
+      for (const [index, file] of result.files.slice(0, -1).entries()) {
+        if (index) await writeCheckpoint('before_affected_report');
+        const reportPath = join(archive, file.path);
+        if (file.before.length) {
+          const temp = join(reports, `.revision-${randomUUID()}.tmp`);
+          try {
+            await publishFile(temp, file.content);
+            const actual = await readRegular(reportPath, MAX_REPORT_BYTES);
+            if (!actual.equals(file.before)) fail('revision_conflict', 'Base changed at replacement');
+            await fs.rename(temp, reportPath);
+          } finally { await fs.rm(temp, { force: true }); }
+        } else await publishFile(reportPath, file.content);
+        linked = true;
+        await fs.utimes(reportPath, review.reportMtimeMs / 1000, review.reportMtimeMs / 1000);
+        const reportHandle = await fs.open(reportPath, constants.O_RDONLY);
+        try { await reportHandle.sync(); } finally { await reportHandle.close(); }
+      }
       const reportDir = await fs.open(reports, constants.O_RDONLY);
       try { await reportDir.sync(); } finally { await reportDir.close(); }
       await writeCheckpoint('report_linked');
-      const st = await fs.stat(join(reports, `${review.reportId}.md`));
-      if (st.mtimeMs !== review.reportMtimeMs) fail('catalogue_stale', 'Filesystem cannot retain the reviewed timestamp');
       await writeCheckpoint('before_index');
+      for (const file of result.files.slice(0, -1)) {
+        const path = join(archive, file.path), st = await fs.stat(path);
+        if (st.mtimeMs !== review.reportMtimeMs || !(await readRegular(path, MAX_REPORT_BYTES)).equals(file.content))
+          fail('catalogue_stale', 'Accepted report bytes or timestamp changed before indexing');
+      }
+      let currentIndex;
+      try { currentIndex = sha(await readRegular(indexPath, MAX_INDEX_BYTES)); }
+      catch (e) { if (e.code !== 'not_found') throw e; currentIndex = null; }
+      if (currentIndex !== review.expectedCatalogueRevision) fail('catalogue_stale', 'Catalogue changed before actual write');
       const catalogueRevision = await replaceIndex(next);
       return { ok: true, status: 'accepted_local_unpublished', reportId: review.reportId, revision: review.reportRevision,
         catalogueRevision, changedFiles: review.changedFiles, reviewDigest: review.reviewDigest,
@@ -752,6 +863,24 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
       if (e.code === 'EEXIST') fail('revision_conflict', 'Accepted report already exists; no overwrite');
       throw e;
     }
+  }
+  async function readProposalDiff(args) {
+    const { proposalId, expectedRevision, expectedBaseRevision, acceptedAt, expectedReviewDigest, offset = 0 } = args;
+    if (Object.keys(args).some(k => !['proposalId', 'expectedRevision', 'expectedBaseRevision', 'acceptedAt', 'expectedReviewDigest', 'offset'].includes(k)) ||
+        [expectedRevision, expectedReviewDigest].some(v => v !== undefined && (typeof v !== 'string' || !digestPattern.test(v))))
+      fail('invalid_input', 'Invalid diff identity');
+    if (!Number.isSafeInteger(offset) || offset < 0 || (offset && (!expectedRevision || !expectedReviewDigest || !acceptedAt)))
+      fail('invalid_input', 'Diff continuation requires its complete reviewed identity');
+    const plan = await reviewProposal({ proposalId, expectedBaseRevision, acceptedAt, includeFiles: true });
+    if ((expectedRevision && expectedRevision !== plan.review.expectedRevision) ||
+        (expectedReviewDigest && expectedReviewDigest !== plan.review.reviewDigest)) fail('revision_conflict', 'Diff review changed');
+    const bytes = Buffer.from(plan.files.map(reportDiff).join('\n'));
+    if (offset > bytes.length || (offset < bytes.length && (bytes[offset] & 0xc0) === 0x80)) fail('invalid_input', 'Invalid diff offset');
+    let end = Math.min(bytes.length, offset + maxReadBytes);
+    while (end < bytes.length && (bytes[end] & 0xc0) === 0x80) end--;
+    return { ok: true, review: plan.review, content: { text: utf8(bytes.subarray(offset, end)), startByte: offset, endByte: end, totalBytes: bytes.length },
+      requirement: 'Read ALL diff continuations, source/scope/date/provenance/relationship changes and qualifications before approval.',
+      continuation: end < bytes.length ? { ...plan.diffRead, offset: end } : null };
   }
   async function rebuildCatalogue() {
     await ready();
@@ -771,7 +900,10 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
   return {
     importReport: input => queued(() => importReport(input)),
     createResearchProposal: input => queued(() => createResearchProposal(input)),
+    createImprovementProposal: input => queued(() => createImprovementProposal(input)),
+    inspectImprovementBase,
     readProposal, readAccepted, searchReports,
+    readProposalDiff: input => queued(() => readProposalDiff(input)),
     reviewProposal: input => queued(() => reviewProposal(input)),
     acceptProposal: input => queued(() => acceptProposal(input)),
     rebuildCatalogue: () => queued(rebuildCatalogue),

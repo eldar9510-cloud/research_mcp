@@ -88,10 +88,10 @@ export function createServer(config) {
     return { ...(data.ok ? {} : { isError: true }), content: [{ type: 'text', text }], structuredContent: data };
   };
   server.registerTool('start_research', {
-    description: 'Start ONE bounded standalone NEW research job after explicit user authorization of this question/scope/limits/references. Supported trusted Pi TUI: prepare with research_request, then call its ordinary mcp object unchanged. Coverage is read-only and is not a standalone-start prerequisite; installation is not approval. Host gate is offline-tested; a separately authorized scoped live production-MCP proof produced a readable local unaccepted proposal. Raw local MCP is trusted software, not conversational authentication. Returns promptly; no queue, automatic retries, acceptance or publication. Only tighter finite limits; max three explicit accepted-report byte selections and three exact prior-job artifact revision/byte selections (partials), sharing the existing context budget. Continuation is a NEW authorized identity, never restored SDK history. No improvement/recheck mode or conversation context.',
+    description: 'Start ONE bounded standalone NEW or IMPROVE job after explicit user authorization of question/scope/limits/references, exact base, selected gaps and particular old-source passage/claim checks. Supported trusted Pi TUI: prepare with research_request, then call its ordinary mcp object unchanged. Coverage is read-only and is not a standalone-start prerequisite; installation is not approval. Host gate is offline-tested; a separately authorized scoped live production-MCP proof produced a readable local unaccepted proposal. Raw local MCP is trusted software, not conversational authentication. Returns promptly; no queue, automatic retries, acceptance or publication. Only tighter finite limits; max three explicit accepted-report byte selections and three exact prior-job artifact revision/byte selections (partials), sharing the existing context budget. Continuation is a NEW authorized identity, never restored SDK history. Improvement requires improvement:{base:{reportId,expectedRevision},disposition:same_report|linked_report,gaps:[1..4 short gaps],oldSourceChecks:[0..3 {url,claim,contains OR offset}],linkedRelation?:extends|corrects|replaces,baseNotice?:required for corrects/replaces}; references MUST select the exact base. Empty checks means NONE, not blanket refresh. Same report uses exact canonical question/scope/language. No conversation context.',
     // Validate the complete strict contract inside research.start so SDK-generated
     // Zod diagnostics cannot echo arbitrary keys/values or exceed the 4 KiB guard.
-    inputSchema: z.object(Object.fromEntries(['mode', 'question', 'scope', 'language', 'references', 'partials', 'limits']
+    inputSchema: z.object(Object.fromEntries(['mode', 'question', 'scope', 'language', 'references', 'partials', 'limits', 'improvement']
       .map(key => [key, z.unknown().optional()]))).passthrough(),
   }, params => researchResult(() => research.start(params)));
   server.registerTool('get_research_job', {
@@ -128,11 +128,15 @@ export function createServer(config) {
   });
   server.registerTool('review_research_draft', {
     description: 'Preview the exact LOCAL acceptance envelope for a proposal, including content digest, expected catalogue/base revision, metadata/warnings and exact changed paths. Read the whole proposal body before asking the user to approve; review does not grant permission or write accepted files.',
-    inputSchema: { proposalId: z.string(), expectedBaseRevision: z.null().optional() },
+    inputSchema: { proposalId: z.string(), expectedBaseRevision: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional() },
   }, async params => result(() => archive.reviewProposal(params), undefined, 'review'));
+  server.registerTool('read_research_diff', {
+    description: 'Read the COMPLETE bounded report/catalogue diff before approval. Every page binds proposal/base/acceptance time/review digest. Pass the WHOLE continuation unchanged; changed bases or proposals conflict. Includes source/scope/summary/date/origin/relationship changes, not an automatic approval. No writes.',
+    inputSchema: z.object(Object.fromEntries(['proposalId', 'expectedRevision', 'expectedBaseRevision', 'acceptedAt', 'expectedReviewDigest', 'offset'].map(k => [k, z.unknown().optional()]))).passthrough(),
+  }, async params => result(() => archive.readProposalDiff(params), undefined, 'review'));
   server.registerTool('accept_research_draft', {
     description: 'Apply one explicitly USER-approved reviewed envelope locally only. Supply the exact review fields, not a model-generated approval flag. In supported Pi sessions the project acceptance extension intercepts every adapter dispatch and asks the user; raw MCP is trusted local software, NOT authenticated. No Git commit/push.',
-    inputSchema: { proposalId: z.string(), expectedRevision: z.string(), expectedBaseRevision: z.null(),
+    inputSchema: { proposalId: z.string(), expectedRevision: z.string(), expectedBaseRevision: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
       acceptedAt: z.string(), expectedCatalogueRevision: z.string().nullable(), expectedReviewDigest: z.string() },
   }, async params => result(() => archive.acceptProposal(params), undefined, 'accept'));
   server.registerTool('search_research', {

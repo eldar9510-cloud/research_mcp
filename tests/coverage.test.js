@@ -81,7 +81,7 @@ test('partial preserves useful evidence, unknown original dates and explicit sco
   assert.equal(result.outcome, 'partial');
   assert.equal(result.evidence[0].researched_at, null);
   assert.match(result.limitations[0], /clay soil/);
-  assert.match(result.next, /future explicitly authorized targeted improvement/);
+  assert.match(result.next, /explicitly authorized targeted improvement via research_request, exact base\/qualified selections\/gaps\/old-source checks/);
   assert.equal(result.dispatched.research, false);
 });
 

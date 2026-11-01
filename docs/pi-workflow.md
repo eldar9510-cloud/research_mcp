@@ -75,7 +75,7 @@ research_coverage({action: "decide", outcome: "partial",
 | Outcome | Response / authority |
 | --- | --- |
 | `covered` | Reuse selected dated findings, report ID/revision, citations and caveats. No automatic investigation, improvement or source refresh. |
-| `partial` | Explain reusable material, gaps and uncertainty; offer targeted improvement. #9 is unimplemented: reject it, never broaden into a new job. |
+| `partial` | Explain reusable material, gaps and uncertainty; offer targeted improvement. Use [the strict scoped improvement variant](improvement.md) only after explicit authorization of exact base, qualified selections, gaps and particular old-source checks; never broaden into an unrelated new job. |
 | `no_useful_match` | Say this bounded lookup found no useful match, not that relevant work cannot exist. Offer new research or import; only scoped user permission -> `research_request` -> returned normal MCP call. |
 | `lookup_error` | Missing/invalid/stale catalogue, failed I/O, changed revision or irreducible oversized result: **STOP the automatic research decision**. Not an empty archive or research trigger. |
 

@@ -863,6 +863,78 @@
       ]
     },
     {
+      "id": "openscad-runtime-headless-csg-export",
+      "path": "reports/openscad-runtime-headless-csg-export.md",
+      "revision": "5ecd12cbc0c23063054338204acf53544417f34449392a4fed65712a43d1bf54",
+      "sourceDigest": "0b3f27fa293988db0066aca8d736f04a0b8826101effb3bb79f9f2b56c87ae28",
+      "size": 19645,
+      "mtimeMs": 1793575991000,
+      "title": "OpenSCAD runtime, headless export and backend tradeoffs",
+      "question": "Which OpenSCAD build/backend fit headless CSG export, and are STEP interchange and deterministic output available?",
+      "scope": "Historical2026-08-13 snapshot versus2021.01 stable on Ubuntu24.04; runtime/CLI/export, not general CAD/FEA MCP surveying.",
+      "summary": "Compares Manifold/CGAL, source-stated STEP absence, CLI behavior and release/install/license constraints.",
+      "researched_at": "2026-08-14",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:33:11.717Z",
+      "updated_at": "2026-11-01T23:33:11.717Z",
+      "imported_at": "2026-11-01T20:39:01.475Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Official/source/issues/community URLs; executable downloads and source targets not followed."
+        },
+        {
+          "code": "report_warning",
+          "message": "Host/build details, absolute paths and internal lift/reverse-engineering context."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unresolved_citation",
+          "message": "Unresolved or ambiguous imported reference or footnote; no target was invented."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "plc-simulation-scl-runtime-comparison",
       "path": "reports/plc-simulation-scl-runtime-comparison.md",
       "revision": "bfb3b41150e7ea8802d9d0d8dd244f688216c3fc3967d281b3f889a8987f1437",

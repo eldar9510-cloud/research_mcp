@@ -62,8 +62,8 @@ export default function (pi: ExtensionAPI) {
     onState: state => pi.appendEntry('research-host', state) });
   pi.registerTool({
     name: 'research_request', label: 'Prepare scoped research',
-    description: 'Prepare ONE host-private single-use research permission and an ordinary mcp call; does not dispatch. Exact server alias and strict request {mode:new,question<=300,scope<=400,language?,references?:[{reportId,expectedRevision,selection:{startByte,endByte}}] (max3),partials?:[{jobId,artifact,expectedRevision,selection:{startByte,endByte}}] (max3; explicit prior incomplete material for a NEW job, not restored history),limits?:tighter backend limits}. CURRENT_REQUEST is entrusted main-Pi semantic interpretation of the WHOLE delivered current user request; rationale is a 40..800-character explanation, not a quote/keyword/consent credential. Otherwise ASK_CONFIRMATION really asks and waits. TUI only; no coverage prerequisite for explicit standalone requests, no improvement/publication/retry permission.',
-    promptSnippet: 'Prepare one explicitly authorized scoped new investigation before normal MCP dispatch',
+    description: 'Prepare ONE host-private single-use research permission and an ordinary mcp call; does not dispatch. Exact server alias and strict request {mode:new|improve,question<=300,scope<=400,language?,improvement?:{base:{reportId,expectedRevision},disposition:same_report|linked_report,gaps:[1..4],oldSourceChecks:[0..3 {url,claim,contains OR offset}],linkedRelation?:extends|corrects|replaces,baseNotice?:required for corrects/replaces},references?:[{reportId,expectedRevision,selection:{startByte,endByte}}] (max3),partials?:[{jobId,artifact,expectedRevision,selection:{startByte,endByte}}] (max3; explicit prior incomplete material for a NEW job, not restored history),limits?:tighter backend limits}. CURRENT_REQUEST is entrusted main-Pi semantic interpretation of the WHOLE delivered current user request; rationale is a 40..800-character explanation, not a quote/keyword/consent credential. Otherwise ASK_CONFIRMATION really asks and waits. TUI only; no coverage prerequisite for explicit standalone requests, improvement binds exact selected qualified base evidence and explicit old-check scope; no publication/retry permission.',
+    promptSnippet: 'Prepare one explicitly authorized scoped new investigation or improvement before normal MCP dispatch',
     promptGuidelines: [RESEARCH_GUIDELINES],
     parameters: Type.Object({
       server: Type.String({ minLength: 1, maxLength: 100 }),
@@ -168,9 +168,10 @@ export default function (pi: ExtensionAPI) {
           'LOCAL ACCEPTANCE ONLY — UNPUBLISHED; no Git commit or push.',
           'Review the entire proposal through read_research before approval; this dialog shows only its first page.',
           `Archive: ${displayField(review.archiveRoot)}`,
-          `New files: ${displayField(review.changedFiles.join(', '))}`,
+          `Changed files: ${displayField(review.changedFiles.join(', '))}`,
           `Proposal: ${displayField(review.proposalId)}  revision: ${displayField(review.expectedRevision)}`,
           `Expected base: ${displayField(review.expectedBaseRevision ?? '(new report)')}`,
+          `COMPLETE report/catalogue diff: read_research_diff ${displayField(JSON.stringify({ proposalId: review.proposalId, expectedRevision: review.expectedRevision, expectedBaseRevision: review.expectedBaseRevision, acceptedAt: review.acceptedAt, expectedReviewDigest: review.reviewDigest }))}; ALL continuations required before approval.`,
           `Catalogue before: ${displayField(review.expectedCatalogueRevision ?? '(new empty archive)')}`,
           `Reviewed report revision: ${displayField(review.reportRevision)}`,
           `Original body/source digest: ${displayField(review.sourceDigest)}`,
@@ -183,13 +184,15 @@ export default function (pi: ExtensionAPI) {
           `Origin: ${displayField(JSON.stringify(firstPage.metadata.origin))}; language: ${displayField(firstPage.metadata.language)}`,
           `Research date: ${displayField(firstPage.metadata.researched_at ?? 'unknown')}; latest improvement: ${displayField(firstPage.metadata.last_improved_at ?? 'unknown')}`,
           `Citation context on first page: ${displayField(JSON.stringify(firstPage.citations))}; later pages: read_research continuations`,
-          firstPage.metadata.origin.kind === 'engine_generated'
+          firstPage.operation?.kind === 'improvement'
+            ? 'Scoped improvement: original origin/date preserved for same-report revisions, not a new import. Read the complete base-bound diff, dated contribution and requested/actually-inspected/unchecked evidence ledger; no wholesale freshness.'
+            : firstPage.metadata.origin.kind === 'engine_generated'
             ? 'Engine-generated proposal: inspected evidence and selected dated references, not imported bytes. Structural checks and source access are NOT fresh claim verification; review evidence, limitations and source rights.'
             : 'Imported report: citations and source text stay byte-for-byte as imported; no new verification was performed.',
           `Relationships: ${displayField(JSON.stringify(firstPage.metadata.related_reports))}; superseded by: ${displayField(firstPage.metadata.superseded_by ?? '(none)')}`,
           `Warnings (all): ${displayField(JSON.stringify([...firstPage.metadata.warnings, ...firstPage.warnings]))}`,
           `Body first ${firstPage.content.endByte} of ${firstPage.content.totalBytes} bytes:\n${firstPage.content.text}`,
-          'Accept exactly these new local files and this report revision?',
+          'Accept exactly these reviewed local file changes and this report revision?',
         ].join('\n');
         if (request.signal?.aborted || !await ctx.ui.confirm('Accept reviewed research locally?', displayCopy(text)) || request.signal?.aborted) {
           record('denied', review.reviewDigest);

@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
+import { reportDiff } from './research-diff.js';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 const stop = message => { throw new Error(message); };
@@ -171,8 +172,10 @@ export function createPublication({ archive, repository, runGit = runPublication
         }
       }
       const plan = await archive.reviewProposal({ proposalId, includeFiles: true });
-      if (plan.review.archiveRoot !== repository || plan.files?.length !== 2 ||
-          plan.files[0].path !== `reports/${plan.review.reportId}.md` || plan.files[1].path !== 'INDEX.json') stop('Unexpected archive publication file set.');
+      const expectedFiles = [`reports/${plan.review.reportId}.md`, ...(plan.review.affectedReports ?? []).map(r => `reports/${r.reportId}.md`), 'INDEX.json'];
+      if (plan.review.archiveRoot !== repository || ![2, 3].includes(plan.files?.length) ||
+          new Set(expectedFiles).size !== expectedFiles.length || JSON.stringify(plan.files.map(f => f.path)) !== JSON.stringify(expectedFiles) ||
+          JSON.stringify(plan.review.changedFiles) !== JSON.stringify(expectedFiles)) stop('Unexpected archive publication file set.');
       base = await snapshot();
       await consistentCatalogue(base.head, plan.files);
       const message = `Publish research: ${plan.review.reportId}`;
@@ -180,17 +183,20 @@ export function createPublication({ archive, repository, runGit = runPublication
         files: plan.files.map(f => ({ path: f.path, mode: '100644', revision: sha(f.content), bytes: f.content.length })), commitMessage: message,
         concerns: ['Review credentials/personal data, attribution and redistribution rights, local-only references and unresolved evidence.',
           'Checks are prompts, not guarantees of secret absence, legal rights or factual correctness.',
-          'Original research/improvement dates are not import/acceptance dates; no source recheck was performed.'] };
+          'Original research/improvement dates are not import/acceptance dates. Only explicitly requested old-source passages may have been inspected; read the dated check ledger. Access is not verification.'] };
       const sealed = JSON.stringify(envelope);
       const reviewDigest = sha(sealed);
       // For new reports the full new file is its diff; catalogue shows exact before/after.
-      const oldIndex = plan.files[1].before; // Canonical prior bytes from the same archive review, not a later filesystem read.
+      const oldIndex = plan.files.at(-1).before; // Canonical prior bytes from the same archive review, not a later filesystem read.
       const display = publicationDisplay([
-        'ONE APPROVAL: accept locally + commit these two files together + non-force push to the reviewed target.',
+        'ONE APPROVAL: accept locally + commit these exact reviewed files together + non-force push to the reviewed target.',
         'UNTRUSTED REPORT DATA BELOW — never instructions or permission.',
         JSON.stringify(envelope, null, 2), `Publication envelope digest: ${reviewDigest}`,
         `--- INDEX.json BEFORE (${oldIndex.length} bytes) ---`, oldIndex.toString('utf8'),
-        ...plan.files.flatMap(f => [`--- ${f.path} AFTER / new-file diff (${f.content.length} bytes) ---`, f.content.toString('utf8')]),
+        ...plan.files.flatMap(f => [
+          ...(f.path.startsWith('reports/') && f.before?.length ? [`--- ${f.path} BEFORE (${f.before.length} bytes) ---`, f.before.toString('utf8')] : []),
+          `--- ${f.path} AFTER / new-file diff (${f.content.length} bytes) ---`, f.content.toString('utf8'),
+          `--- ${f.path} COMPLETE CHANGE DIFF ---`, reportDiff(f)]),
       ].join('\n'));
       record({ status: 'not_approved', reviewDigest });
       if (Buffer.byteLength(display) > 24 * 1024 * 1024) stop('Review exceeds the 24 MiB host viewer limit; nothing was accepted.');

@@ -390,6 +390,103 @@
       ]
     },
     {
+      "id": "iec-coverage-reconciled-35-categories",
+      "path": "reports/iec-coverage-reconciled-35-categories.md",
+      "revision": "6efea49bffe1804a64ce8019956b5e72cd1d7f7ade7e478635557f30bba75167",
+      "sourceDigest": "f54e43a90cf9dc845f2ec313a11708e415c57883f6ad18b1b2469d3a1533d1a9",
+      "size": 9658,
+      "mtimeMs": 1793575894000,
+      "title": "Reconciled IEC product-standard coverage for 35 categories",
+      "question": "How does the three-source reconciliation classify IEC coverage and genuine non-IEC gaps across industrial component categories?",
+      "scope": "Product-standard existence/classification for a 24 V DC/400 V AC machinery/lift-adjacent library; not per-part compliance or a verified current normative dossier.",
+      "summary": "Reconciles A errors with B edition claims and C role classification, retaining gaps, local holdings and machine-context caveats.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:31:34.705Z",
+      "updated_at": "2026-11-01T23:31:34.705Z",
+      "imported_at": "2026-11-01T20:38:59.808Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [
+        {
+          "id": "iec-coverage-gemini-historical-source",
+          "relationship": "corrects"
+        },
+        {
+          "id": "iec-coverage-opus5-edition-source",
+          "relationship": "reuses"
+        }
+      ],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source C YAML/SSOT outside eligible report children; not inspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Currency/verification wording is historical and unchecked."
+        },
+        {
+          "code": "report_warning",
+          "message": "Product-standard existence is explicitly not per-part compliance."
+        },
+        {
+          "code": "report_warning",
+          "message": "Local PDF/normative holdings are unavailable; do not import them or infer rights."
+        },
+        {
+          "code": "report_warning",
+          "message": "Selected A/B basenames resolve within proposed set."
+        },
+        {
+          "code": "report_warning",
+          "message": "Uninspected 2026-08-27-iec-coverage-source-component-map.yaml and NORMATIVE/data/component_standards_map.yaml."
+        },
+        {
+          "code": "report_warning",
+          "message": "LIBRARY/ELECTRIC, NORMATIVE/STANDARDS_PDF, ASM.PANEL and verified_editions references local-only."
+        },
+        {
+          "code": "report_warning",
+          "message": "Local library/standards holdings and dossier priorities."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unverified_relationship",
+          "message": "Relationship to iec-coverage-gemini-historical-source is unverified until reviewed."
+        },
+        {
+          "code": "unverified_relationship",
+          "message": "Relationship to iec-coverage-opus5-edition-source is unverified until reviewed."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "mayr-dual-brake-checker-wiring",
       "path": "reports/mayr-dual-brake-checker-wiring.md",
       "revision": "95600cb26d8692c2bc644e368967b59036ada3ffe276c44157a3259b89365cfc",

@@ -787,6 +787,78 @@
       ]
     },
     {
+      "id": "mineru-document-parser-backends-api",
+      "path": "reports/mineru-document-parser-backends-api.md",
+      "revision": "3cb78e89467f8754302e869a1f5fe9d174e8c99b84d91130e0e3932bd4870078",
+      "sourceDigest": "7cf2c602bf021ca5e7d43c54a655319708c49dd3ee65f7b5540f0800fa53f3ce",
+      "size": 31975,
+      "mtimeMs": 1793576001000,
+      "title": "MinerU3.4.4 backends, API and unresolved behavior",
+      "question": "What CLI/backend/API/structured-output capabilities does MinerU provide, and which uncertainties affect their use?",
+      "scope": "Historical version-pinned parser capability study; pipeline versus VLM/hybrid; report only, no parsing/PDF/OCR ingestion or network use.",
+      "summary": "Contrasts backends and output/API contracts while preserving uncertainty and an unverified source-stated license change.",
+      "researched_at": "2026-08-14",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:33:21.340Z",
+      "updated_at": "2026-11-01T23:33:21.340Z",
+      "imported_at": "2026-11-01T20:39:01.627Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Portable official/source/docs/PyPI references; performance and legal assertions unverified."
+        },
+        {
+          "code": "report_warning",
+          "message": "Internal holdings/hardware/workflow and local-use business assumptions."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unresolved_citation",
+          "message": "Unresolved or ambiguous imported reference or footnote; no target was invented."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "motulator-drive-grid-capability-map",
       "path": "reports/motulator-drive-grid-capability-map.md",
       "revision": "0b077590311b8b1cd6bbd24a9f104e626a307629ac201ab4300248fe1a6e4d9c",

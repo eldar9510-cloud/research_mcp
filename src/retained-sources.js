@@ -54,7 +54,7 @@ export function retainedSourceUrls(...material) {
       if (!atomic && closing) for (const token of [...candidates]) {
         const end = token.lastIndexOf(closing);
         // Only punctuation OUTSIDE the paired wrapper is prose, even with '?'.
-        if (end >= 0 && /^[.,;:!]*$/.test(token.slice(end + 1))) candidates.add(token.slice(0, end));
+        if (end >= 0 && /^[.,;:!?)\]}>]*$/.test(token.slice(end + 1))) candidates.add(token.slice(0, end));
       }
       for (const token of candidates) {
         // Validate full raw values BEFORE dropping fragments or parsing. URL

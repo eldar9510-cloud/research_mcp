@@ -146,8 +146,9 @@ for (const [retained, requested] of [
   assert.equal(done.reason, 'reference_context_unavailable'); assert.equal(setup, 0);
 });
 
-for (const [opening, closing] of [['"', '"'], ['`', '`'], ['<', '>']]) test('quoted prose keeps its complete bare-query target: ' + opening, async t => {
-  const url = URL + '?', s = await fixture(t, { body: JSON.stringify({ note: `Earlier source ${opening}${url}${closing}. Original evidence remains dated.` }) });
+for (const [opening, closing, suffix] of [['"', '"', '.'], ['`', '`', '.'], ['<', '>', '.'],
+  ['"', '"', '?'], ['<', '>', ')'], ['"', '"', '>']]) test('quoted prose keeps its complete bare-query target: ' + opening + suffix, async t => {
+  const url = URL + '?', s = await fixture(t, { body: JSON.stringify({ note: `Earlier source ${opening}${url}${closing}${suffix} Original evidence remains dated.` }) });
   s.request.improvement.oldSourceChecks = [{ url, offset: 0, claim: 'Inspect only this particular prior definition.' }];
   const h = await host(t, s); assert.equal((await h.prepare()).status, 'prepared');
   assert.equal(await h.gate.authorize({ serverName: 'repair', args: s.request }, h.ctx), 'allow_once');

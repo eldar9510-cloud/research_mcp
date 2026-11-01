@@ -859,6 +859,74 @@
       ]
     },
     {
+      "id": "pymupdf-fallback-extraction-tradeoffs",
+      "path": "reports/pymupdf-fallback-extraction-tradeoffs.md",
+      "revision": "e1a805bd17f6d7a66d616b3dfd052b08fbc511b2b69be797a7a4b6650e1593cb",
+      "sourceDigest": "2ab33aad2f36a3f38f152eae7c0c5ab472c1284fe730d8707d1d7cc4865cc13a",
+      "size": 27079,
+      "mtimeMs": 1793575967000,
+      "title": "PyMuPDF fallback extraction and licensing tradeoffs",
+      "question": "Which PyMuPDF extraction modes and layout/table remedies fit a fallback engine, and what limitations and licensing questions remain?",
+      "scope": "Historical1.28.2 engineering-document fallback study; report text only, no PDFs/standards/source-document ingestion.",
+      "summary": "Surveys flags, table/OCR/layout routes, example shortlist and reading-order pitfalls; retains unresolved internal-use licensing interpretation.",
+      "researched_at": "2026-08-14",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:32:47.437Z",
+      "updated_at": "2026-11-01T23:32:47.437Z",
+      "imported_at": "2026-11-01T20:39:00.910Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Portable docs/source/community/licensing URLs; targets and legal claims not rechecked."
+        },
+        {
+          "code": "report_warning",
+          "message": "NORMATIVE/ELECTRONICS holdings and local installation context; holdings not read."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "sphinx-nine-technical-documentation",
       "path": "reports/sphinx-nine-technical-documentation.md",
       "revision": "1b75d2e0c53dd0d0f3eed67aa4f022311c411d7eb79b5dba1903c65f053f5aa2",

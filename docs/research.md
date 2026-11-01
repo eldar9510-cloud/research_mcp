@@ -1,6 +1,6 @@
-# Standalone research — bounded jobs and local proposals (issue #7)
+# Standalone research — bounded jobs, cancellation and local recovery
 
-`start_research` and `get_research_job` manage a separate bounded Pi SDK investigator and produce local unaccepted proposals. **The trusted Pi TUI research gate and read-only coverage handoff are implemented and offline-tested; a separately authorized scoped live production-MCP investigation produced a sourced, readable local proposal on 2026-11-01.** The live proof does not establish live TUI intent accuracy or arbitrary-web reliability; see [Verification](#verification). Installing code or approving this policy is NOT permission for a live job. Coverage never dispatches research.
+`start_research` and `get_research_job` manage a separate bounded Pi SDK investigator and produce local unaccepted proposals. `cancel_research` stops active work; `read_research_artifact` inspects bounded, revision-bound local partial material without launching research. **The trusted Pi TUI research gate and read-only coverage handoff are implemented and offline-tested; a separately authorized scoped live production-MCP investigation produced a sourced, readable local proposal on 2026-11-01.** The live proof does not establish live TUI intent accuracy or arbitrary-web reliability; see [Verification](#verification). Installing code or approving this policy is NOT permission for a live job. Coverage never dispatches research.
 
 Raw local MCP clients are trusted local software, not authenticated conversational consent. Before dispatch, the host/operator must have explicit authorization for the exact scoped task, selected references and limits. There is no `approved` flag. Research permission never grants acceptance, commit or push permission. Formal issue acceptance follows parent integration checks and the GitHub tracker, not this document.
 
@@ -52,8 +52,10 @@ An explicit standalone new-job request needs **no coverage-assessment prerequisi
 ```js
 createResearch({ archive, workRoot, createDependencies?, createSession? })
 // start(request) -> compact initial status, synchronously reserves one active slot
-// get({jobId}) -> compact snapshot
-// shutdown() -> abort owned runtime; no restart/resume
+// await get({jobId}) -> compact snapshot; safely discovers older disk records
+// await cancel({jobId}) -> terminal snapshot (user_stop); no retry permission
+// await readArtifact({jobId,artifact,expectedRevision?,selection?,offset?}) -> bounded page
+// await shutdown() -> abort owned runtime as interrupted/shutdown; no restart/resume
 ```
 
 `archive` is the same archive instance used by the MCP server; `workRoot` is its configured local work root. `createDependencies({signal})` is the actual external seam, returning `{modelRuntime, adapter}`; the default uses the concrete Brave adapter and supported Pi runtime. `createSession` is only the small scripted/late-SDK-creation test seam, not a provider extension mechanism. Production has no fixture environment switches.
@@ -67,6 +69,7 @@ The strict request is:
   "scope": "W3C guidance; compare inclusive access with exclusion and state limits.",
   "language": "en",
   "references": [],
+  "partials": [],
   "limits": {}
 }
 ```
@@ -75,13 +78,17 @@ Question <=300 characters; scope <=400; meaningful well-formed text. Language de
 
 Up to three references have exactly `{reportId, expectedRevision, selection:{startByte,endByte}}`. They select accepted reports only, by exact revision and UTF-8 byte range. The engine resolves the selection, exact required warning chunks and citation definitions **inside the deadline, before dependency/auth/model initialization**. Unknown/unavailable/stale context or a selection/context that cannot fit yields `incomplete/reference_context_unavailable` before paid work. Serialized reference context shares the same aggregate 10,000-byte content budget as tool results. Referenced reports are dated, not refreshed or freshly verified; there is no old-source refresh operation. Generated proposals deterministically retain each selected R#'s exact gathered warnings, correction notices, successor identity, dates/scope and citation context in a labelled inert JSON appendix. Per-reference metadata warnings and the reader's required warning-context continuations keep those qualifications visible even on narrow findings reads; the source's successor does not become the new report's own successor.
 
-For MCP, submit that object to `start_research`, poll `get_research_job` with only `{jobId}`, and use a completed status's `outputs.proposal` unchanged with `read_research`. MCP parsing deliberately defers the strict research validation to the module so malformed fields cannot produce growing/credential-bearing SDK diagnostics. Errors use fixed codes (`invalid_input`, `research_busy`, `research_shutdown`, `not_found`, or `research_unavailable`). No call stays open for the whole investigation and busy never queues.
+Up to three `partials` select available prior local material by exactly `{jobId, artifact, expectedRevision, selection:{startByte,endByte}}`. Use the digest/total byte length from `read_research_artifact`; ranges address UTF-8 bytes of the stored JSON envelope, not JavaScript character indexes. A request must explicitly commission the selected material AND the new question/scope/limits. The normal `research_request` helper reviews these selectors and revalidates the actual material before/after confirmation and before ordinary MCP dispatch. Changed/missing material invalidates permission; consumed consent is never refunded. The backend validates again before dependencies/auth/model work.
+
+Continuation always allocates a **new job ID** under the same ordinary one-use authorization flow. No SDK history, credentials, agent state or automatic retry is restored. The researcher receives only the selected bytes plus exact inherited qualifications, parent identity, material digest/range/selected digest and original job date. P# labels denote prior incomplete material, **not freshly inspected evidence**; they cannot alone satisfy the independent core-source requirement. Inherited accepted-report warnings/corrections/successors/citations and dates are preserved even when the selected range omits them. Selected partial context shares the existing aggregate 10,000-byte reference/tool budget, not an extra allowance. A material/context that cannot fit fails before paid setup. Read/cancel/get and source instructions grant no continuation authorization or source-refresh permission.
+
+For MCP, submit that object to `start_research`, poll `get_research_job` with only `{jobId}`, and use a completed status's `outputs.proposal` unchanged with `read_research`. MCP parsing deliberately defers the strict research validation to the module so malformed fields cannot produce growing/credential-bearing SDK diagnostics. Errors use fixed codes (`invalid_input`, `research_busy`, `research_shutdown`, `not_found`, `artifact_unavailable`, `artifact_unsupported`, `revision_conflict`, or `research_unavailable`). No call stays open for the whole investigation and busy never queues.
 
 ## Status and local retention
 
 Status is allowlisted and **<=4 KiB including model-visible MCP text**, not only structured data. It contains:
 
-- A distinct `job-*` identity; status `running|completed|incomplete|failed|cancelled` and fixed phase/reason enums.
+- A distinct `job-*` identity; status `running|completed|incomplete|failed|cancelled|interrupted` and fixed phase/reason enums.
 - Start/end timestamps, resolved finite limits, attempt/content counters and available numeric usage totals (not invented costs).
 - Requested `openai-codex/gpt-6.1-sol/max`; `actualModel: null` until the effective runtime configuration has been checked. This records observable configuration, not proof of a provider's internal execution.
 - Fixed first-tool-failure diagnostics and safe local record/evidence/proposal references, never question text, sources, transcript, thinking, search hits, raw errors, stack traces or credentials.
@@ -100,9 +107,31 @@ Schema field buckets are fixed: `report`, `title`, `summary`, `findings`, `findi
 
 Diagnostics contain only these developer-owned enums: no supplied names/indices/values, Zod messages/issues/paths, candidate JSON, final model text or errors are retained. Snapshots are copied/frozen; the existing 3,800-byte JSON and 4 KiB model-visible MCP guards remain strict. Valid jobs and other failure reasons omit the field. Rejection still produces no proposal, acceptance, Git action or source refresh; independent source evidence is retained as before. These synthetic diagnostic regressions do **not** establish the historical live rejection cause, which remains unknown without retained final text. No retry or new live permission is implied.
 
-One active job and at most **64** retained status records in memory. Old terminal records remain on disk but are not automatically loaded/resumed; an evicted/previous-process ID returns `not_found`. There is no automatic deletion or retry. Disk retention grows with explicitly launched jobs and requires operator review; there is no durable scheduler. Shutdown cancels active runtime work. Complete cancellation controls, restart/interrupted-record discovery and partial-artifact recovery are issue #8, not claimed here.
+One active job and at most **64 cached statuses**; older records are inspected from disk on demand. There is no automatic deletion, retry or durable scheduler. Disk retention grows with explicitly launched jobs and requires operator review.
 
-`RESEARCH_WORK_ROOT/jobs/<jobId>.json` holds the compact terminal record; `<jobId>.sources.json` holds only bounded independently fetched passages, hashes, visible-text character offsets/continuation flags, actual access times and explicitly selected dated archive evidence/required context. `<jobId>.plan.json` records the first public evidence plan before search; no Brave query/result body/title/snippet, SDK session/transcript or hidden reasoning is persisted. Independent source evidence retains its own rights; local retention is not permission to publish it. Evidence and terminal records use exclusive, mode-0600 regular-file writes under checked non-symlink directories. Failures are reported as retention unavailable; incomplete final files are never retried/overwritten automatically. Terminal flushing uses only the remaining wall budget (one best-effort timer tick after expiry); an uncooperative filesystem cannot hold the active slot/shutdown indefinitely. Basic flushes are best effort on controlled shutdown, not crash-proof recovery. Already issued filesystem/provider operations may settle after abort; no subsequent proposal publication step is started after its signal is aborted. Same-user path-replacement races are not a portable OS sandbox guarantee.
+### Cancellation and recovery procedure
+
+1. Call `cancel_research({jobId})` for an explicit user stop. The outcome is `cancelled/user_stop`, not a finished proposal. Terminal jobs remain unchanged. Abort guards prevent new setup/auth/model/tool/proposal steps promptly; an already in-flight upstream request may continue and incurred usage is **not refunded**.
+2. Controlled SIGINT/SIGTERM/transport shutdown requests abort and preserves available work as `interrupted/shutdown`, distinct from a human stop. Abrupt process loss can lose unflushed output. On startup, abandoned running records become `interrupted/abandoned_runtime`; no model, auth initializer, source refresh, acceptance or Git operation is started by recovery.
+3. Poll `get_research_job` for compact surviving references. Read one explicitly named material using `read_research_artifact({jobId,artifact})`; pass the complete continuation unchanged. Every page identifies its revision, date and untrusted incomplete status. An explicit selection requires `expectedRevision`. `qualificationRead` points to the complete same-revision envelope: all inherited qualification context must be read before relying on a narrow selection. Pages stay within the existing 3,800-byte JSON / 4 KiB visible MCP bounds.
+4. Missing/truncated/oversized/symlink/nonregular/unexpected records never prove completion. Recovery returns fixed `survivor_invalid`/retention indicators, preserves original bytes and independent valid material, and never overwrites malformed survivors. A completed record also requires its matching reviewable generated proposal. Known-live sibling ownership is conservatively refused (`research_busy`), including PID reuse/permission uncertainty; **one writer per work root remains the supported setup**. Stop/inspect the known writer before recovery; do not delete records to manufacture success.
+5. If continuation is desired, explicitly select available material/revisions/ranges and commission a **new** scoped request through `research_request` then normal MCP. There is no resume, restore, refresh or publication action hidden in inspection.
+
+### Local artifact format
+
+All files remain under `RESEARCH_WORK_ROOT/jobs/`, outside the accepted catalogue/publication file set. New files are exclusive mode 0600 under checked no-symlink directories (new jobs directories: 0700); bounded regular-file reads refuse symlinks, FIFOs and oversized/changing files. Immutable files are never silently replaced:
+
+- `<jobId>.request.json`: scoped normalized request, durably flushed before paid setup.
+- `<jobId>.running.json`: version 1 initial status and local process/instance ownership, before paid work.
+- `<jobId>.state-N.json`: incremental compact public progress/counters, not SDK messages. Terminal `<jobId>.json` takes precedence over every earlier checkpoint.
+- `<jobId>.references.json`: exact explicitly selected reference/partial qualification context, before auth/model setup.
+- `<jobId>.plan.json`: first public subquestion/evidence plan, before external search. This is public planning, not hidden reasoning or an extra model call.
+- `<jobId>.source-1.json` through `source-4.json`: each independent bounded inspected passage is flushed **before** the next model turn. `<jobId>.sources.json` collects the available independent ledger at completion/termination.
+- `<jobId>.output.json`: only structurally validated, deterministically rendered report output when actually available, even if later proposal persistence fails. Missing output remains unavailable; no rejected candidate, streaming text/thinking or transcript is retained.
+
+The finite material names are `request`, `references`, `plan`, `source-1`..`source-4`, `evidence` (sources file) and `output`. Their version-1 JSON envelope is `{version:1,jobId,startedAt,qualifications:{references,partials},data}`. SHA-256 identifies **all exact stored UTF-8 bytes**, including the final newline and qualifications; selections do not suppress required qualifications. Old #7 compact terminal records are supported where valid; old unenveloped plan/source files are preserved but the revision-bound reader returns `artifact_unsupported` rather than inventing missing immutable provenance. They remain human-readable locally.
+
+No Brave query/result body/title/snippet, private conversation/rationale, rejected model response, raw provider error, SDK session/transcript or hidden reasoning is added to artifacts. Generic secret screening is not an absence-of-secrets guarantee. Independently inspected source material retains its own rights; local retention is not permission to publish it. Terminal flushing uses only the remaining wall budget (one best-effort timer tick after expiry). Already issued OS/provider operations may settle after abort, but cannot replace immutable terminal snapshots or schedule another research step. Recovery is best effort, not crash-proof storage or a same-user OS sandbox.
 
 ## Investigation and hard limits
 
@@ -159,4 +188,4 @@ Proposal provenance was `engine_generated`, Pi SDK and the checked model/effort,
 
 Earlier attempts ended with `source_passage_not_found` (exact selector/body not retained) and `invalid_report` (exact final response not retained). Their precise causes remain unknown; the third success does not diagnose them. Validator rules were not weakened. This narrow RFC proof does not establish arbitrary-web reliability, full-source inspection, copyright clearance, semantic truth, physical-human authentication, live-model intent/TUI-key accuracy or cancellation/restart recovery (#8). Existing broker-cache and target-attestation trust limits remain unchanged.
 
-Formal #7 acceptance follows independent closeout review, parent integration checks and the GitHub tracker; this document does not close the issue. All prior live permissions are consumed, and no further live permission is granted by this evidence, tests or setup. After full #7 acceptance the parent must PAUSE, not start #8–#11.
+Formal #7 acceptance follows independent closeout review, parent integration checks and the GitHub tracker; this document does not close the issue. All prior live permissions are consumed, and no further live permission is granted by this evidence, tests or setup. The owner separately resumed bounded #8 implementation; no new live permission follows. Its cancellation/recovery/continuation evidence is offline and synthetic: `tests/research-lifecycle.test.js`, `tests/research-lifecycle-mcp.test.js`, and the extended actual Pi/adapter research-host probe cover local mechanics and authorization, not upstream cancellation latency, refunds, live semantic intent accuracy or arbitrary-web reliability. Parent review/integration/full checks still govern #8 acceptance; later issues are not automatically authorized.

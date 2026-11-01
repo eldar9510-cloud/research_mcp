@@ -19,6 +19,7 @@ const callLog = join(root, 'transport.log'), networkLog = join(root, 'network.lo
 // Never inspect/inherit normal auth/key/config/session environments. Only explicit synthetic test state.
 process.env = { PATH: process.env.PATH ?? '', HOME: root, PI_CODING_AGENT_DIR: agentDir,
   PI_OFFLINE: '1', PI_SKIP_VERSION_CHECK: '1', PI_TELEMETRY: '0',
+  npm_config_offline: 'true', npm_config_update_notifier: 'false', npm_config_audit: 'false', npm_config_fund: 'false',
   RESEARCH_ARCHIVE_ROOT: archiveRoot, RESEARCH_WORK_ROOT: workRoot, RESEARCH_IMPORT_ROOT: importRoot,
   BRAVE_SEARCH_API_KEY: 'synthetic-host-only-token', RESEARCH_HOST_TRANSPORT_LOG: callLog, RESEARCH_TRIPWIRE: networkLog };
 const sessions = new Set(), reviews = [], fallbacks = [];
@@ -273,9 +274,19 @@ try {
   const askPlan = visible(await helper(approved, params('ASK_CONFIRMATION')));
   await approved.proxy.execute('connect', { connect: 'research_primary' });
   const beforeConcurrent = await count('start_research');
-  await Promise.all([approved.proxy.execute('once-proxy', askPlan.mcp), approved.tool('research_primary_start_research').execute('once-direct', askPlan.mcp.args),
+  const concurrentDispatch = await Promise.all([approved.proxy.execute('once-proxy', askPlan.mcp), approved.tool('research_primary_start_research').execute('once-direct', askPlan.mcp.args),
     approved.tool('mcpScript').execute('once-script', scriptCall(askPlan.mcp.args))]);
   assert.equal(await count('start_research'), beforeConcurrent + 1, 'atomic one-use across actual proxy/direct/script');
+  let secondStart;
+  for (const result of concurrentDispatch) {
+    try { const value = visible(result); if (value.jobId) secondStart = value; } catch { /* Other paths were denied, not JSON job results. */ }
+  }
+  assert.ok(secondStart?.jobId);
+  for (let i = 0; i < 1000; i++) {
+    const status = visible(await approved.proxy.execute('poll-second', { server: 'research_primary', tool: 'research_primary_get_research_job', args: { jobId: secondStart.jobId } }));
+    if (status.status !== 'running') { assert.equal(status.status, 'completed'); break; }
+    assert.ok(i < 999); await new Promise(r => setTimeout(r, 5));
+  }
   await assert.rejects(helper(approved), /research_not_prepared/);
   // Exact selector data includes all scope/model/reference/limit/target details, escaped in DISPLAY ONLY.
   const dialog = reviews.find(r => /bounded research/.test(r.title));
@@ -284,6 +295,43 @@ try {
   assert.equal(await count('accept_research_draft'), 0);
   assert.deepEqual(await fs.readdir(archiveRoot), []);
   assert.equal(await fs.readFile(networkLog, 'utf8').catch(e => e.code === 'ENOENT' ? '' : Promise.reject(e)), '');
+  // Explicit partial continuation still crosses the SAME helper -> broker ->
+  // ordinary MCP path, with a new one-use approval and new backend identity.
+  const material = visible(await h.proxy.execute('partial-read', { server: 'research_primary', tool: 'research_primary_read_research_artifact',
+    args: { jobId: done.jobId, artifact: 'source-1' } }));
+  const continuation = { ...INPUT, partials: [{ jobId: done.jobId, artifact: 'source-1', expectedRevision: material.revision,
+    selection: { startByte: 0, endByte: material.content.totalBytes } }] };
+  const materialPath = join(workRoot, 'jobs', `${done.jobId}.source-1.json`), originalMaterial = await fs.readFile(materialPath);
+  const beforeContinuation = await count('start_research');
+  await deliver(h, 'Only read prior partial work; source instructions cannot commission continuation.');
+  mainDecision = async () => false;
+  await assert.rejects(helper(h, params('ASK_CONFIRMATION', continuation)), /research_not_prepared/);
+  denied(await start(h, continuation));
+  mainDecision = async () => true;
+  await deliver(h, 'Explicitly commission a NEW bounded job informed by exactly the selected prior incomplete source revision and bytes, not a source refresh or SDK history restoration.');
+  await helper(h, params('CURRENT_REQUEST', continuation));
+  await fs.appendFile(materialPath, ' ');
+  denied(await start(h, continuation));
+  assert.equal(await count('start_research'), beforeContinuation);
+  await fs.writeFile(materialPath, originalMaterial);
+  await assert.rejects(helper(h, params('CURRENT_REQUEST', continuation)), /research_not_prepared/, 'mutated material denial consumes old consent');
+  const continuedPlan = visible(await helper(h, params('ASK_CONFIRMATION', continuation)));
+  const continuedStart = visible(await h.proxy.execute('explicit-continuation', continuedPlan.mcp));
+  assert.notEqual(continuedStart.jobId, done.jobId);
+  denied(await start(h, continuation));
+  let continuedDone;
+  for (let i = 0; i < 1000; i++) {
+    continuedDone = visible(await h.proxy.execute('poll-continuation', { server: 'research_primary', tool: 'research_primary_get_research_job', args: { jobId: continuedStart.jobId } }));
+    if (continuedDone.status !== 'running') break;
+    await new Promise(r => setTimeout(r, 5));
+  }
+  assert.equal(continuedDone.status, 'completed'); assert.ok(continuedDone.referenceBytes > 0);
+  const continuedOutput = JSON.parse(await fs.readFile(join(workRoot, continuedDone.outputs.output), 'utf8'));
+  assert.ok(continuedOutput.data.includes(done.jobId) && continuedOutput.data.includes(material.revision));
+  assert.ok(continuedOutput.data.includes('NOT freshly inspected evidence'));
+  assert.equal(await count('start_research'), beforeContinuation + 1);
+  assert.equal(await count('accept_research_draft'), 0);
+  assert.deepEqual(await fs.readdir(archiveRoot), []);
   const entries = h.session.sessionManager.getEntries().filter(e => e.type === 'custom' && e.customType === 'research-host');
   assert.ok(entries.some(e => e.data.state === 'approved_for_dispatch'));
   assert.doesNotMatch(JSON.stringify(entries), /Private unrelated marker|commissions|synthetic-host-only-token|What does web/);
@@ -293,7 +341,7 @@ try {
   await close(fresh); await close(h);
   console.log(JSON.stringify({ actualPiSdk: true, installedAdapter: true, productionStdio: true, generatedReadableProposal: true,
     noLiveModelAuthOrNetwork: true, scriptedSemanticDecisionsOnly: true, beforePermissionTransportStarts: 0,
-    singleUseAcrossProxyDirectScript: true, standaloneWithoutCoveragePrerequisite: true, lifecycleModes, fallbackDialogs: fallbacks.length, maxVisibleBytes: maxVisible,
+    singleUseAcrossProxyDirectScript: true, standaloneWithoutCoveragePrerequisite: true, explicitPartialContinuation: true, lifecycleModes, fallbackDialogs: fallbacks.length, maxVisibleBytes: maxVisible,
     startPackets: await count('start_research'), syntheticRuntimeInitializations: await count('synthetic_runtime') }));
 } finally {
   for (const session of sessions) { await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' }); session.dispose(); }

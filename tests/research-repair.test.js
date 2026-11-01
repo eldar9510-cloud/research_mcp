@@ -129,7 +129,7 @@ test('selected legacy correction, warnings, successor and exact citation context
   assert.equal(done.status, 'completed');
   const prompt = JSON.stringify(s.f.trace[0].context.messages);
   for (const marker of ['BODY_CORRECTION', 'METADATA_CORRECTION', 'replacement-report', 'LEGACY_CITATION_CONTEXT']) assert(prompt.includes(marker));
-  const ledger = JSON.parse(await fs.readFile(join(s.workRoot, done.outputs.evidence), 'utf8'));
+  const ledger = JSON.parse(await fs.readFile(join(s.workRoot, done.outputs.evidence), 'utf8')).data;
   const original = ledger.references[0];
   assert(original.notices.map(n => n.text).join('').includes(correction));
   assert(original.notices.filter(n => !n.chunkNumber).sort((a, b) => a.startByte - b.startByte).map(n => n.text).join('').includes(citation));
@@ -220,7 +220,7 @@ test('actual Codex SSE max_output_tokens tool turn halts at that response: one r
   const snapshot = JSON.stringify(done), artifacts = await durableText(r.workRoot);
   await owned.agent.waitForIdle();
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(JSON.stringify(research.get({ jobId: done.jobId })), snapshot);
+  assert.equal(JSON.stringify(await research.get({ jobId: done.jobId })), snapshot);
   assert.equal(await durableText(r.workRoot), artifacts);
   assert.equal(JSON.stringify(JSON.parse(await fs.readFile(join(r.workRoot, done.outputs.record), 'utf8'))), snapshot);
   assert.equal(count, 1); assert.equal(disposed, 1);

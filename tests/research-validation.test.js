@@ -55,29 +55,31 @@ async function rejected(s, expected, inspected = true) {
   assert.equal(s.f.trace.length, done.modelCalls, 'no retry or polishing dispatch');
   assert(Buffer.byteLength(JSON.stringify(done)) <= 3800);
   assert(Object.isFrozen(done.reportFailure));
-  const next = s.research.get({ jobId: done.jobId });
+  const next = await s.research.get({ jobId: done.jobId });
   assert.notEqual(next.reportFailure, done.reportFailure, 'diagnostic snapshots are copies');
   assert.throws(() => { done.reportFailure.code = VALUE; }, TypeError);
   assert.deepEqual(next, done);
   assert.deepEqual(JSON.parse(await fs.readFile(join(s.workRoot, done.outputs.record), 'utf8')), done);
   assert.equal(done.retention, 'saved');
-  const names = [`${done.jobId}.json`, `${done.jobId}.plan.json`];
+  const names = ['.json', '.plan.json', '.request.json', '.running.json', '.references.json'].map(suffix => done.jobId + suffix);
   if (inspected) {
-    names.push(`${done.jobId}.sources.json`);
-    const evidence = JSON.parse(await fs.readFile(join(s.workRoot, done.outputs.evidence), 'utf8'));
+    names.push(`${done.jobId}.sources.json`, `${done.jobId}.source-1.json`);
+    const evidence = JSON.parse(await fs.readFile(join(s.workRoot, done.outputs.evidence), 'utf8')).data;
     assert.equal(evidence.sources.length, 1);
     assert.equal(evidence.sources[0].excerpt, TEXT);
     assert.deepEqual(evidence.references, []);
-    assert.deepEqual(Object.keys(evidence).sort(), ['evidencePlan', 'references', 'sources']);
+    assert.deepEqual(Object.keys(evidence).sort(), ['evidencePlan', 'partials', 'references', 'sources']);
   } else assert.equal(done.outputs.evidence, undefined);
-  assert.deepEqual((await fs.readdir(join(s.workRoot, 'jobs'))).sort(), names.sort());
+  const files = await fs.readdir(join(s.workRoot, 'jobs'));
+  assert.deepEqual(files.filter(f => !/\.state-[1-9][0-9]?\.json$/.test(f)).sort(), names.sort());
+  assert(files.filter(f => /\.state-[1-9][0-9]?\.json$/.test(f)).length <= 32);
   assert.deepEqual(await fs.readdir(s.archiveRoot), []);
   assert.deepEqual(await fs.readdir(join(s.workRoot, 'proposals')).catch(e => e.code === 'ENOENT' ? [] : Promise.reject(e)), []);
   const retained = JSON.stringify(done) + await durableText(s.root);
   for (const marker of [CANDIDATE, PROSE, KEY, VALUE, 'Transient API', 'synthetic-only-placeholder', '"messages"', '"context"'])
     assert.equal(retained.includes(marker), false, `must not retain ${marker}`);
   await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(s.research.get({ jobId: done.jobId }), done, 'terminal snapshot is fixed');
+  assert.deepEqual(await s.research.get({ jobId: done.jobId }), done, 'terminal snapshot is fixed');
 }
 
 test('actual SDK invalid-report path diagnoses JSON parse failure without retaining final text', async t => {

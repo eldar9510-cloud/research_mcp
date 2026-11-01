@@ -38,7 +38,7 @@ test('generalized real SDK + Brave scripted HTTP/DNS/connect -> generated propos
   assert.match(body, /Evidence and analysis/); assert.match(body, /Alternatives and applicability/); assert.match(body, /Limitations/); assert.match(body, /Unresolved questions/);
   assert.match(body, /people with disabilities/); assert.match(body, /\[S1\]: https:\/\/www\.w3\.org\//);
   assert.match(body, /not a semantic truth certificate/); assert.doesNotMatch(body, /API title marker|API snippet marker|synthetic-only-token/);
-  const ledger = JSON.parse(await fs.readFile(join(r.workRoot, done.outputs.evidence), 'utf8'));
+  const ledger = JSON.parse(await fs.readFile(join(r.workRoot, done.outputs.evidence), 'utf8')).data;
   assert(ledger.sources[0].offset > 2400); assert.match(ledger.sources[0].visibleTextSha256, /^[a-f0-9]{64}$/);
   assert.equal(ledger.sources[0].rawTruncated, false); assert(!Number.isNaN(Date.parse(ledger.sources[0].accessedAt)));
   const recreated = createArchive(r);

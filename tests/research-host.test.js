@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeResearchRequest, LIMITS } from '../src/research.js';
+import { createResearch, normalizeResearchRequest, LIMITS } from '../src/research.js';
 import { createResearchHost, localResearchTarget, researchDisplay } from '../src/research-host.js';
 import * as fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -9,7 +9,7 @@ import { join, resolve } from 'node:path';
 const request = { mode: 'new', question: 'Which accessible design fits?', scope: 'Compare inclusive access with exclusion; state limitations.' };
 test('host and backend share strict immutable default-resolved research requests', () => {
   const normalized = normalizeResearchRequest(request);
-  assert.deepEqual(normalized, { ...request, language: 'en', references: [], limits: LIMITS });
+  assert.deepEqual(normalized, { ...request, language: 'en', references: [], partials: [], limits: LIMITS });
   assert.deepEqual(normalizeResearchRequest({ ...request, language: 'en', references: [], limits: { wallMs: 180000 } }), normalized);
   assert.ok(Object.isFrozen(normalized) && Object.isFrozen(normalized.references) && Object.isFrozen(normalized.limits));
   for (const bad of [{ ...request, approved: true }, { ...request, mode: 'improve' }, { ...request, limits: { wallMs: 180001 } }, { ...request, references: [{ reportId: 'a' }] }])
@@ -77,6 +77,22 @@ test('one private current-delivery receipt is atomic, scoped, and never refundab
   assert.equal(await gate.authorize(call(request), ctx), 'deny'); publishing = false;
   for (const mode of ['print', 'json', 'rpc']) await assert.rejects(gate.prepare(input, { ...ctx, mode }), /research_not_prepared/);
   assert.ok(await localResearchTarget(root, 'arbitrary_alias'));
+  const enteredPartial = Promise.withResolvers();
+  const research = createResearch({ workRoot: env.RESEARCH_WORK_ROOT,
+    archive: { readAccepted() {}, createResearchProposal() {} },
+    createDependencies: async () => { enteredPartial.resolve(); return new Promise(() => {}); } });
+  t.after(() => research.shutdown());
+  const old = research.start(request); await enteredPartial.promise;
+  await research.cancel({ jobId: old.jobId });
+  const material = await research.readArtifact({ jobId: old.jobId, artifact: 'request' });
+  const continuation = { ...request, partials: [{ jobId: old.jobId, artifact: 'request', expectedRevision: material.revision,
+    selection: { startByte: 0, endByte: material.content.totalBytes } }] };
+  const continuedInput = { ...input, request: continuation };
+  deliver(); await gate.prepare(continuedInput, ctx);
+  const materialPath = join(env.RESEARCH_WORK_ROOT, 'jobs', `${old.jobId}.request.json`);
+  await fs.appendFile(materialPath, ' ');
+  assert.equal(await gate.authorize(call(continuation), ctx), 'deny', 'material mutation invalidates exact reviewed continuation BEFORE MCP dispatch');
+  deliver(); await assert.rejects(gate.prepare(continuedInput, ctx), /research_not_prepared/);
   await fs.mkdir(join(root, '.pi')); await fs.writeFile(join(root, '.pi', 'mcp.json'), '{}');
   assert.equal(await localResearchTarget(root, 'arbitrary_alias'), undefined);
   assert.equal(researchDisplay('scope\u202e\u009b\u001b'), 'scope\\u202e\\u009b\\u001b');

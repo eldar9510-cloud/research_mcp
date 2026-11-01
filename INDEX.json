@@ -82,6 +82,86 @@
       ]
     },
     {
+      "id": "frenic-lm2a-ups-rescue-topology",
+      "path": "reports/frenic-lm2a-ups-rescue-topology.md",
+      "revision": "9136a872f8100a460df7c540219b38b94b837d4febf6c3967b71fb9a229b8071",
+      "sourceDigest": "2d5b12f63aafa9c6cfbed8e38a54e1efe37249fa2bec9c2f854601e7376fa70a",
+      "size": 11475,
+      "mtimeMs": 1793575842000,
+      "title": "FRENIC-Lift LM2A emergency-descent UPS topology",
+      "question": "Is the LM2A rescue UPS inline or switched in parallel, and which terminal/model assumptions remain unresolved?",
+      "scope": "FRN0015LM2A-4E 400 V-class screw-lift rescue topology, contactor/BATRY sequencing and 230 V applicability; not wiring approval or certification.",
+      "summary": "Argues for an interlocked switched rescue supply; explicitly leaves terminal choice and FRN0015/FRN0019 applicability confirmation open.",
+      "researched_at": "2026-08-22",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:30:42.946Z",
+      "updated_at": "2026-11-01T23:30:42.946Z",
+      "imported_at": "2026-11-01T20:38:59.525Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "Gemini",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Report compliance language is not certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Manual is reported to say R-T or S-T; R-T is a synthesized default."
+        },
+        {
+          "code": "report_warning",
+          "message": "FRN0015-versus-FRN0019 230 V applicability remains open."
+        },
+        {
+          "code": "report_warning",
+          "message": "Safety-critical design not independently reviewed."
+        },
+        {
+          "code": "report_warning",
+          "message": "Fuji/manual/distributor/Scribd URLs not inspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Internal ELECTRONICS finding A and URANO-E panel context unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Internal machine/panel context and design gap."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-stated generating agent label: deep-research-preview-04-2026; underlying model/platform remain unknown unless explicitly attributed."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unresolved_citation",
+          "message": "Unresolved or ambiguous imported reference or footnote; no target was invented."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
       "id": "historical-cad-fea-mcp-toolchains",
       "path": "reports/historical-cad-fea-mcp-toolchains.md",
       "revision": "ced5a2bca8bbd87ca0c6339f67a47e9bfb49c0b7949d76a2b60a3d51cce16766",

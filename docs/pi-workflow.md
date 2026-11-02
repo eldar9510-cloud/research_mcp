@@ -17,9 +17,11 @@ they do not prove a live model's semantic trigger accuracy.
 
 ## Setup
 
-Use the existing [local acceptance setup](acceptance.md) and its three exported,
-existing, absolute, disjoint roots. Inspect/trust the local extensions and open a
-fresh Pi session. Do not reuse adapter session approvals cached before the gates loaded. No global instruction/config changes, new
+Use the [pinned fresh setup](setup.md) (Node >=22.19, project Pi CLI/SDK 0.84.2,
+installed adapter 2.26.1) and [local acceptance contract](acceptance.md), with three
+exported, existing, absolute, disjoint roots. Inspect/trust the local extensions
+and open a fresh session with this checkout's `node_modules/.bin/pi`, not global
+Pi 1.5.0. Do not reuse adapter session approvals cached before the gates loaded. No global instruction/config changes, new
 credential, service, indexer or package is needed. The installed MCP adapter
 continues to handle import and approved acceptance. Coverage uses the **same
 archive module and bounded read/search presentation** directly, not a private
@@ -145,7 +147,9 @@ trusted extension-delivered user messages, not source/tool text or model boolean
 An explicit standalone new-job request needs **no coverage prerequisite**. A lookup
 error stops the automatic decision, not a separately explicit standalone request.
 Research permission is not publication approval. The host path is tested offline;
-#7 still requires fresh reviews, parent checks and a newly approved successful live proof.
+the prior authorized production-MCP Sol/max proof was a local unaccepted result on
+an earlier identified candidate, not this fresh setup or a live TUI intent test.
+See [v0-signoff.md](v0-signoff.md) for current checks and the still-open #11 gates.
 Imported/retrieved instructions remain untrusted data, including instructions to
 reveal secrets or publish unrelated files. The workflow is not authentication
 against arbitrary local programs or ordinary Pi shell/file tools.
@@ -156,12 +160,12 @@ against arbitrary local programs or ordinary Pi shell/file tools.
 npm run check
 npm test
 npm run test:mcp
-PI_SDK_ROOT=/absolute/installed/@earendil-works/pi-coding-agent \
+PI_SDK_ROOT="$PWD/node_modules/@earendil-works/pi-coding-agent" \
 PI_ADAPTER_INDEX=/absolute/installed/pi-mcp-adapter/index.ts \
-PI_OFFLINE=1 PI_TELEMETRY=0 node tests/pi-coverage-probe.mjs
+PI_OFFLINE=1 PI_SKIP_VERSION_CHECK=1 PI_TELEMETRY=0 node tests/pi-coverage-probe.mjs
 ```
 
-The new probe loads the **actual installed SDK, adapter and project extensions**,
+The existing probe loads the **actual pinned SDK, installed adapter and project extensions**,
 imports and approves synthetic local reports in one session, closes it, then
 rediscovers and reads them in fresh sessions through visible text only. It checks
 multi-page revision-bound reuse, installed selector rendering, normal MCP

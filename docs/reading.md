@@ -1,6 +1,6 @@
 # Selected, revision-bound reading
 
-Issue #4 repair implements the owner's approved interpretation of [PRD READ-02/03](PRD.md#9-reading-reports-and-preserving-evidence): oversized correction text may use explicit required same-revision chunks, never silent omission or invented summaries. This contract does not certify evidence, source freshness, or that a person read anything. Candidate acceptance remains subject to independent review.
+This implements the owner's approved interpretation of [PRD READ-02/03](PRD.md#9-reading-reports-and-preserving-evidence): oversized correction text may use explicit required same-revision chunks, never silent omission or invented summaries. This contract does not certify evidence, source freshness, or that a person read anything. Use the [pinned setup](setup.md); current candidate checks, actual public-corpus observations and prior evidence are separated in [v0-signoff.md](v0-signoff.md).
 
 ## Selection and complete access
 
@@ -73,9 +73,9 @@ Success JSON appears in MCP `content` and `structuredContent`; Pi's installed pr
 npm run check
 npm test
 npm run test:mcp
-PI_SDK_ROOT=/absolute/installed/@earendil-works/pi-coding-agent \
+PI_SDK_ROOT="$PWD/node_modules/@earendil-works/pi-coding-agent" \
 PI_ADAPTER_INDEX=/absolute/installed/pi-mcp-adapter/index.ts \
-PI_OFFLINE=1 PI_TELEMETRY=0 node tests/pi-host-probe.mjs
+PI_OFFLINE=1 PI_SKIP_VERSION_CHECK=1 PI_TELEMETRY=0 node tests/pi-host-probe.mjs
 git diff --check
 ```
 

@@ -1,27 +1,35 @@
 # research_mcp
 
-A reusable research library for Pi: find previous investigations, reuse what applies, improve them when requested, and publish reviewed results for future sessions.
+A reusable research library for Pi: find previous investigations, reuse what applies, improve requested gaps, and publish reviewed results for future sessions.
 
-**Status: local archive, automatic Pi coverage workflow and approval-bound host publication.** The MCP stdio server imports finished Markdown/plain-text reports as **local unaccepted proposals**, then explicitly reviewed reports can be accepted **locally and unpublished** through the supported interactive Pi approval gate. A compact rebuildable catalogue supports bounded lexical discovery and revision-bound report reads across sessions. See [docs/import.md](docs/import.md) for the proposal contract and [docs/acceptance.md](docs/acceptance.md) for actual Pi setup, approval, search, recovery and tests. The separate [Pi publication command](docs/publication.md) binds one human approval to acceptance, an exact report/catalogue commit and push; verification uses disposable local remotes only. The [automatic Pi coverage workflow](docs/pi-workflow.md) adds bounded local discovery, selected evidence reading and main-Pi applicability decisions, with optional explicitly permitted existing Jev reranking and local fallback. Coverage stays read-only and offers reuse, [explicit scoped improvement](docs/improvement.md) with preserved provenance and complete base-bound diffs, or explicitly authorized new research/import. The [standalone research engine](docs/research.md) adds bounded asynchronous jobs, local generated proposals and the trusted Pi TUI `research_request` -> normal MCP single-use authorization gate. **The gate is offline-tested; a separately authorized scoped live production-MCP investigation produced a sourced, readable local unaccepted proposal.** This does not establish live TUI intent accuracy or arbitrary-web reliability; see the verification evidence and limits. Implementation status follows the [GitHub tracker](https://github.com/eldar9510-cloud/research_mcp/issues); independent review and parent integration checks govern acceptance. Installation is not research permission. Current owner scope is finish #9, then pause before #10/#11.
+**Status: local v0 release candidate; engine publication and #11 sign-off pending.** The accepted engine and the already-public twenty-report corpus are combined locally. The public report/evaluation branch does **not yet contain the engine**; a public clone is not currently a working installation. No release or completion of #11 is claimed. See the [evidence and remaining gates](docs/v0-signoff.md).
 
-## Planned workflow
+The public [twenty-report/ten-question evaluation](evaluation/issue10/README.md) recorded **10/10 useful top-three results** (required: 8/10), using local ranking, not Jev. Reports retain historical/unknown dates, imported origin, citations and correction warnings; retrieval and publication do not verify their conclusions or source rights.
 
-1. Automatically search a compact catalogue before substantial research.
-2. Read relevant report sections; use the existing Jev integration for optional relevance reranking.
-3. Reuse covered findings, offer targeted improvements for gaps, or propose new research.
-4. Run an explicitly authorized, bounded investigation with **Sol at maximum reasoning effort**, or import a finished report from another platform.
-5. Review the report/diff and target, then approve one combined acceptance/commit/push operation, or choose local-only acceptance instead.
+## Use the candidate
 
-Existing reports are not automatically improved or source-checked. Incomplete research stays local. The initial interface is **Pi only**; no website, accounts, or vector database is planned for v0.
+Start with [pinned setup](docs/setup.md): Node **>=22.19**, project-local **Pi CLI/SDK 0.84.2**, and the separately installed **pi-mcp-adapter 2.26.1**. The observed global Pi 1.5.0 is not the supported/tested target. Do not change global configuration or dependency pins to follow this guide.
 
-## Specification
+1. [Search and assess coverage](docs/pi-workflow.md); read selected [revision-bound evidence](docs/reading.md).
+2. Reuse covered, dated findings without automatic source refresh or research.
+3. For gaps, explicitly request a [targeted improvement](docs/improvement.md) or [new Sol/max investigation](docs/research.md). Alternatively [import a finished external report](docs/import.md), without a research run.
+4. Review all report/diff pages, qualifications, exact files and target. Choose [local-only acceptance](docs/acceptance.md), or one separately approved [accept/commit/push operation](docs/publication.md).
+5. In a fresh session, discover by question and read the returned report ID/revision—not a manually pasted file path.
 
-See **[docs/PRD.md](docs/PRD.md)** for the detailed requirements, data format, proposed MCP tools, research lifecycle, approval rules, acceptance tests, and milestones.
+Proposals and incomplete jobs stay local, outside the finished collection. Lookup errors are not empty results. New checkouts can require an **explicit inspected catalogue rebuild** because filesystem mtimes change; a dirty rebuilt index needs maintenance review before publication. There is no silent rebuild, retry, resume or push.
 
-Implementation proposals and unverified live-runtime details are explicitly distinguished from confirmed product requirements. No real research reports have been imported into this repository yet; tests use original fictional fixtures.
+## Documentation
+
+- [Setup, dependencies and checks](docs/setup.md)
+- [Report format and dates](docs/report-format.md) · [Contribution and rights](docs/contributing.md)
+- [Research limits and incomplete-work recovery](docs/research.md) · [Publication recovery](docs/publication.md#receipts-and-partial-operation-recovery)
+- [Current candidate evidence versus prior live proof](docs/v0-signoff.md)
+- [Approved product requirements](docs/PRD.md) · [Historical implementation plan](docs/IMPLEMENTATION_PLAN.md)
+
+Pi is the only supported interactive client. Ordinary files/Git remain the storage boundary: no website, accounts, vector database, durable job service, provider fallback or Gemini runtime dependency. Local tools and extensions run with the user's permissions; this is not a sandbox or authentication against other local programs.
 
 ## Licenses
 
 - Engine code and project documentation: [MIT](LICENSE).
-- Finished research reports, when added and where the contributor has the necessary rights: [CC BY 4.0](LICENSE-REPORTS.md).
-- Third-party sources retain their own licenses and terms.
+- Reports the contributor has the right to license: [CC BY 4.0](LICENSE-REPORTS.md), preserving attribution and changes.
+- Third-party sources/quotes retain their own rights. Import, relevance, HTTP access and publication approval are not factual, currentness or legal certification.

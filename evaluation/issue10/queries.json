@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "state": "FROZEN_BEFORE_FIRST_RETRIEVAL",
+  "codeRevision": "bdd2d703901f76a95c93eaff33aacb14da2a321b",
+  "sourceManifestSha256": "326269941c71e09dff8ca9e6a495d7472d64ae0556045233b93e48d8923997fc",
+  "languageCoverage": "English only; no cross-language claim",
+  "threshold": {
+    "queries": 10,
+    "topK": 3,
+    "minimumUsefulHits": 8
+  },
+  "relevanceMeaning": "A useful dated report or qualified partial contribution, not fresh factual verification or full coverage.",
+  "questions": [
+    {
+      "id": "q01",
+      "language": "en",
+      "query": "Can ordinary PLC blocks be authored outside Siemens tooling, and does the same exchange workflow work for safety code?",
+      "acceptableRelevantReportIds": [
+        "tia-portal-offline-development"
+      ]
+    },
+    {
+      "id": "q02",
+      "language": "en",
+      "query": "Which approach keeps nested boxes and orthogonal connections at fixed positions in one self-contained HTML drawing?",
+      "acceptableRelevantReportIds": [
+        "deterministic-nested-diagram-html"
+      ]
+    },
+    {
+      "id": "q03",
+      "language": "en",
+      "query": "Which harness-documentation outputs need Graphviz, which survive without it, and why can generated HTML have different licensing concerns?",
+      "acceptableRelevantReportIds": [
+        "wireviz-cli-output-licensing-boundary"
+      ]
+    },
+    {
+      "id": "q04",
+      "language": "en",
+      "query": "With two basic brake checkers, what wiring findings can be reused and which reference-potential and error-feedback connections remain unresolved?",
+      "acceptableRelevantReportIds": [
+        "mayr-dual-brake-checker-wiring"
+      ]
+    },
+    {
+      "id": "q05",
+      "language": "en",
+      "query": "Why is the earlier component standards matrix unsafe to reuse unqualified, and which reconciled investigation supersedes it?",
+      "acceptableRelevantReportIds": [
+        "iec-coverage-gemini-historical-source",
+        "iec-coverage-reconciled-35-categories"
+      ]
+    },
+    {
+      "id": "q06",
+      "language": "en",
+      "query": "How can generated schema validators preserve enum and field constraints, and where can contract-generator behavior drift?",
+      "acceptableRelevantReportIds": [
+        "linkml-contract-generation-semantics"
+      ]
+    },
+    {
+      "id": "q07",
+      "language": "en",
+      "query": "Which Python calculation approach produces an auditable HTML report, and does a displayed unit label enforce dimensional correctness?",
+      "acceptableRelevantReportIds": [
+        "efficalc-auditable-calculation-reports"
+      ]
+    },
+    {
+      "id": "q08",
+      "language": "en",
+      "query": "What browser must be available for headless Plotly image export on Linux, and how did the newer architecture change deployment?",
+      "acceptableRelevantReportIds": [
+        "kaleido-v1-headless-static-export"
+      ]
+    },
+    {
+      "id": "q09",
+      "language": "en",
+      "query": "Which previous parser studies compare fallback PDF text and layout recovery with full structured extraction backends, including unresolved limitations?",
+      "acceptableRelevantReportIds": [
+        "pymupdf-fallback-extraction-tradeoffs",
+        "mineru-document-parser-backends-api"
+      ]
+    },
+    {
+      "id": "q10",
+      "language": "en",
+      "query": "What must a fault-tree XML input declare, and why can schema validation succeed while probability analysis still fails?",
+      "acceptableRelevantReportIds": [
+        "scram-mef-xml-gates-probabilities"
+      ]
+    }
+  ],
+  "measurementRule": "Record candidate generation separately from actual user-visible final ranking. Preserve fixed queries/relevance on misses; no hidden research or full-archive model input. Bind final accepted report/catalogue revisions before measuring.",
+  "priorDraft": "Original eleven-report scout draft is preserved separately, not scored or overwritten."
+}

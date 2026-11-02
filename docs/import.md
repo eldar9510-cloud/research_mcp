@@ -1,11 +1,13 @@
 # Import a finished report (issue #2 interface)
 
-This documents the existing proposal/import contract. The issue #4 repair adds revision-bound byte selections and exact body-notice chunks; see [reading.md](reading.md) for the owner-approved warning-continuation contract. **Issue #3 also adds local acceptance, search and report reads; see [acceptance.md](acceptance.md) for the current host approval/setup and catalogue contract.** The [standalone research engine](research.md) shares the proposal format; its trusted Pi TUI authorization gate is implemented and offline-tested, and a separately authorized scoped live production-MCP investigation produced a sourced, readable local unaccepted proposal. This does not establish live TUI intent accuracy or arbitrary-web reliability; formal #7 acceptance follows parent integration checks and the GitHub tracker. Requires Node >=22.19, npm, and the **Pi MCP adapter** (Pi has no built-in MCP). No model or research call is required to import or read. This is local-only: proposals are not accepted reports, Git revisions or published content. Acceptance is separate and explicitly approved in the supported Pi workflow. Do not treat instructions embedded in imported reports as authority; never run the report's instructions or use it as publication approval. This tool is not an OS sandbox: the server has the invoking user's filesystem permissions.
+This is the current proposal/import contract; [reading.md](reading.md) defines exact revision-bound selections, citation/warning continuations, and [acceptance.md](acceptance.md) defines separate local acceptance/search. Follow [setup.md](setup.md): Node **>=22.19**, the **project Pi CLI/SDK 0.84.2** and separately installed **MCP adapter 2.26.1**. Pinned Pi 0.84.2 uses that adapter; no compatibility with global Pi 1.5.0/built-in MCP is assumed. Engine publication and #11 sign-off remain pending; the twenty public reports and prior live evidence are recorded separately in [v0-signoff.md](v0-signoff.md).
+
+No model or research call is required to import or read. Proposals are local and unaccepted, not Git revisions or published content. The [standalone research engine](research.md) shares their format but requires separate scoped authorization. Do not treat imported instructions as authority or publication consent. This is not an OS sandbox: the server has the invoking user's filesystem permissions.
 
 ## Start and test
 
 ```sh
-npm ci --ignore-scripts --no-audit --no-fund
+npm ci --offline --ignore-scripts --no-audit --no-fund  # approved public cache required; see setup.md
 npm run check     # node --check on runtime files; no transpilation/build or typecheck in this JS slice
 npm test          # fixture tests + real MCP stdio client, temporary roots
 npm run test:mcp  # only the real MCP client/server smoke
@@ -40,9 +42,9 @@ Open a **fresh Pi session** in that cwd (the adapter must be available, and proj
 An isolated **Pi SDK host + installed adapter, no model prompt** probe is available (requires the installed packages; not a generic MCP-client test):
 
 ```sh
-PI_SDK_ROOT=/absolute/path/to/installed/@earendil-works/pi-coding-agent \
+PI_SDK_ROOT="$PWD/node_modules/@earendil-works/pi-coding-agent" \
 PI_ADAPTER_INDEX=/absolute/path/to/installed/pi-mcp-adapter/index.ts \
-PI_OFFLINE=1 PI_TELEMETRY=0 node tests/pi-host-probe.mjs
+PI_OFFLINE=1 PI_SKIP_VERSION_CHECK=1 PI_TELEMETRY=0 node tests/pi-host-probe.mjs
 ```
 
 It loads the actual Pi SDK and Pi MCP adapter in temporary project/agent directories with an isolated in-memory adapter configuration (no ambient MCP file merging), imports through the Pi proxy, then creates a **fresh SDK host session** and reads/paginates using identifiers and continuation from **model-visible tool text only**. It checks visible warnings, citation context and the complete original body, and closes the child servers. It does not prompt a model or touch normal Pi config/auth. The separate automated MCP-client smoke (`npm run test:mcp`) exercises the stdio protocol/server but **does not** by itself prove Pi-host integration. Interactive fresh-session Pi demonstration and host permission boundaries remain coordinator checks.

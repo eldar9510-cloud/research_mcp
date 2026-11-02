@@ -4,7 +4,7 @@
 
 ## Setup and use
 
-Use the [acceptance setup](acceptance.md): three existing absolute disjoint roots, the project-local extension and installed Pi MCP adapter. Local-only acceptance remains available unchanged through its digest-bound MCP broker. Publication is an ordinary **host command**, not an MCP/research/model tool:
+Use the [pinned fresh setup](setup.md) and [acceptance contract](acceptance.md): Node >=22.19, project Pi CLI/SDK 0.84.2, installed adapter 2.26.1, three existing absolute disjoint roots and inspected project extensions. For a code+data checkout, the archive is its Git root and work/import directories are siblings outside it. Current engine-source publication is pending; do not assume a public clone or global Pi 1.5.0 is the supported setup. Local-only acceptance remains available unchanged through its digest-bound MCP broker. Publication is an ordinary **host command**, not an MCP/research/model tool:
 
 ```text
 /research-publish <proposalId> <existing-remote-name> <current-branch>
@@ -60,13 +60,13 @@ There is **no automatic retry, reset, force, rollback or cleanup**. A later retr
 npm run check
 npm test
 npm run test:mcp
-PI_SDK_ROOT=/absolute/installed/@earendil-works/pi-coding-agent \
+PI_SDK_ROOT="$PWD/node_modules/@earendil-works/pi-coding-agent" \
 PI_ADAPTER_INDEX=/absolute/installed/pi-mcp-adapter/index.ts \
-PI_OFFLINE=1 PI_TELEMETRY=0 node tests/pi-host-probe.mjs
-PI_SDK_ROOT=/absolute/installed/@earendil-works/pi-coding-agent \
+PI_OFFLINE=1 PI_SKIP_VERSION_CHECK=1 PI_TELEMETRY=0 node tests/pi-host-probe.mjs
+PI_SDK_ROOT="$PWD/node_modules/@earendil-works/pi-coding-agent" \
 PI_ADAPTER_INDEX=/absolute/installed/pi-mcp-adapter/index.ts \
-PI_OFFLINE=1 PI_TELEMETRY=0 node tests/pi-publication-probe.mjs
+PI_OFFLINE=1 PI_SKIP_VERSION_CHECK=1 PI_TELEMETRY=0 node tests/pi-publication-probe.mjs
 git diff --check
 ```
 
-Focused tests instrument acceptance and Git dispatch and exercise real local Git, exact report/catalogue blobs together, successful actual bare-remote push, actual receive rejection, denial/headless/boolean/cancellation, changed proposal/catalogue/target/branch/outgoing state, unrelated work/staging, pre-existing and same-OID mutated symbolic destinations (including partial-operation revalidations and protocol visibility), ignored prior local acceptance, valid prior tracked reports, baseline report digest mismatch, commit and uncertain partial failures. The new host probe loads the actual installed SDK and adapter, uses deterministic fake TUI **keys** against the actual scrollable viewer, instruments Git and checks no accepted files for negatives, then performs an actual **local-only** push. It makes no model/search calls, reads no normal auth stores, changes no global configuration and claims **no real human click or real-remote publication**. Independent parent review and a separately authorized interactive/live demonstration remain distinct from these controlled checks.
+Focused tests instrument acceptance and Git dispatch and exercise real local Git, exact report/catalogue blobs together, successful actual bare-remote push, actual receive rejection, denial/headless/boolean/cancellation, changed proposal/catalogue/target/branch/outgoing state, unrelated work/staging, pre-existing and same-OID mutated symbolic destinations (including partial-operation revalidations and protocol visibility), ignored prior local acceptance, valid prior tracked reports, baseline report digest mismatch, commit and uncertain partial failures. The new host probe loads the actual installed SDK and adapter, uses deterministic fake TUI **keys** against the actual scrollable viewer, instruments Git and checks no accepted files for negatives, then performs an actual **local-only** push. It makes no model/search calls, reads no normal auth stores, changes no global configuration and claims **no real human click or real-remote publication**. The prior owner-reported/Git-verified #10 corpus publication and new #11 controlled checks are separate evidence in [v0-signoff.md](v0-signoff.md); no new real publication or engine-source push is authorized.

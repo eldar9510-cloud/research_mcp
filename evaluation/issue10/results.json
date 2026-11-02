@@ -1,0 +1,974 @@
+{
+  "state": "PASS",
+  "finishedAt": "2026-11-01T23:49:20.774Z",
+  "binding": {
+    "state": "FROZEN_RUN_BEFORE_FIRST_QUERY",
+    "startedAt": "2026-11-01T23:49:18.456Z",
+    "codeRevision": "bdd2d703901f76a95c93eaff33aacb14da2a321b",
+    "publicationCommit": "7e3ad79ee7e59d08a928b5c89bcf98b8aed87938",
+    "catalogueRevision": "36818df3b4be88773c0a8f0622772356339bb6c18a1998846741ccfa9de51f39",
+    "sourceManifestSha256": "326269941c71e09dff8ca9e6a495d7472d64ae0556045233b93e48d8923997fc",
+    "queryFileSha256": "d84a8bc1408fead6ba5b8453cb3fb300edfa63e271416eef2973ec3257d493be",
+    "reportRevisions": [
+      {
+        "id": "deterministic-nested-diagram-html",
+        "revision": "dee9e5c43aabb0aa09bb752759374714302fb544153ee45ab48e2a0c425dbac7",
+        "sourceSha256": "37b15a95044f88ccd2f73e50dfddc354ea8e65d73143c138430fb2359b655fde"
+      },
+      {
+        "id": "efficalc-auditable-calculation-reports",
+        "revision": "d4c550d609633ff695ea54512e9947fc068ef56649db127385e3138facaff421",
+        "sourceSha256": "5fc70889d61e36470a8283159f39a9bc301803b2f75f70861e55736b59725160"
+      },
+      {
+        "id": "frenic-lm2a-ups-rescue-topology",
+        "revision": "9136a872f8100a460df7c540219b38b94b837d4febf6c3967b71fb9a229b8071",
+        "sourceSha256": "2d5b12f63aafa9c6cfbed8e38a54e1efe37249fa2bec9c2f854601e7376fa70a"
+      },
+      {
+        "id": "historical-cad-fea-mcp-toolchains",
+        "revision": "ced5a2bca8bbd87ca0c6339f67a47e9bfb49c0b7949d76a2b60a3d51cce16766",
+        "sourceSha256": "3200a0d9f521bc1615a29f28621c10bac5ec99c2d2242e2efca5fe2ef0edbe65"
+      },
+      {
+        "id": "iec-coverage-gemini-historical-source",
+        "revision": "100f27c71d664797ff860a2a105f06b1645a4cf2402204feb662cbf4d2e24009",
+        "sourceSha256": "bfddfd966b7855099c8981919256852c0424264db04a9ff87ed645d82997e9fe"
+      },
+      {
+        "id": "iec-coverage-opus5-edition-source",
+        "revision": "3a011ebec1d0735f498e4c5fd2bbf1d361f9f7e9c950ea3ba487228e223588ee",
+        "sourceSha256": "49eb6e25212795d1ccdd50b10702febab57c033606e3409ed909a6546f591347"
+      },
+      {
+        "id": "iec-coverage-reconciled-35-categories",
+        "revision": "6efea49bffe1804a64ce8019956b5e72cd1d7f7ade7e478635557f30bba75167",
+        "sourceSha256": "f54e43a90cf9dc845f2ec313a11708e415c57883f6ad18b1b2469d3a1533d1a9"
+      },
+      {
+        "id": "kaleido-v1-headless-static-export",
+        "revision": "67e683ff555de8513a589c24b7efee58b26aa226b38c5044d60e44afdd2187fd",
+        "sourceSha256": "c71b8039903e24cc637e924f0861201131e31302048867fcbe60660cb6ca2032"
+      },
+      {
+        "id": "linkml-contract-generation-semantics",
+        "revision": "13732fc8922489ae029f3a4f98f08d8ba277aadbd941c78f3719696f3573aaf2",
+        "sourceSha256": "90cf8a5d04272fdcf6f4f2d315e641d8517a0d61eed4752f28a4c72daa347b3e"
+      },
+      {
+        "id": "mayr-dual-brake-checker-wiring",
+        "revision": "95600cb26d8692c2bc644e368967b59036ada3ffe276c44157a3259b89365cfc",
+        "sourceSha256": "23ea244f08eaa3ef07fc461bdf211aa056b8d958a671551867d5a538c089bc8f"
+      },
+      {
+        "id": "mineru-document-parser-backends-api",
+        "revision": "3cb78e89467f8754302e869a1f5fe9d174e8c99b84d91130e0e3932bd4870078",
+        "sourceSha256": "7cf2c602bf021ca5e7d43c54a655319708c49dd3ee65f7b5540f0800fa53f3ce"
+      },
+      {
+        "id": "motulator-drive-grid-capability-map",
+        "revision": "0b077590311b8b1cd6bbd24a9f104e626a307629ac201ab4300248fe1a6e4d9c",
+        "sourceSha256": "14b3eafeb24540f7874fba955062ed2a02e8eb781d824078d1a8da3493b377fa"
+      },
+      {
+        "id": "openscad-runtime-headless-csg-export",
+        "revision": "5ecd12cbc0c23063054338204acf53544417f34449392a4fed65712a43d1bf54",
+        "sourceSha256": "0b3f27fa293988db0066aca8d736f04a0b8826101effb3bb79f9f2b56c87ae28"
+      },
+      {
+        "id": "plc-simulation-scl-runtime-comparison",
+        "revision": "bfb3b41150e7ea8802d9d0d8dd244f688216c3fc3967d281b3f889a8987f1437",
+        "sourceSha256": "16824e790ffe15df6f0c4f2e17b62ebbb12cea8a7ccc193501548839134ac99e"
+      },
+      {
+        "id": "pymupdf-fallback-extraction-tradeoffs",
+        "revision": "e1a805bd17f6d7a66d616b3dfd052b08fbc511b2b69be797a7a4b6650e1593cb",
+        "sourceSha256": "2ab33aad2f36a3f38f152eae7c0c5ab472c1284fe730d8707d1d7cc4865cc13a"
+      },
+      {
+        "id": "scram-mef-xml-gates-probabilities",
+        "revision": "843659a1f43f8fe0f66d886c7283eaaa10e59cae4352526fb4acfed5b21c0126",
+        "sourceSha256": "76ce92cf004096dd8ad0e54bf9fcc465ba2cdceeced7016cdd339f71118caa19"
+      },
+      {
+        "id": "sphinx-nine-technical-documentation",
+        "revision": "1b75d2e0c53dd0d0f3eed67aa4f022311c411d7eb79b5dba1903c65f053f5aa2",
+        "sourceSha256": "cb8fc05c180e413dec0ff1c6ef916e5082b440fa6139ecef7a054627a62448e9"
+      },
+      {
+        "id": "system-block-diagram-tool-evaluation",
+        "revision": "6ee259e40799e41374284a02e9e2af924ab1e65262790e95d6187b09ccdac887",
+        "sourceSha256": "8925b971c8eeb2ba23665dab4863888c2f30fc7d7602c5180db2e2153b108e12"
+      },
+      {
+        "id": "tia-portal-offline-development",
+        "revision": "000c7b553e287361833686a95f4cd313a814ebee679ead885564ac02dcb508b5",
+        "sourceSha256": "87b8c8c966aa4e6738d6d1a245e1d902928c1c144d82e6f46a6f8f9bec88ea38"
+      },
+      {
+        "id": "wireviz-cli-output-licensing-boundary",
+        "revision": "b16d2c075daccbdce96ad4975548388f53c12ce35eb7601e6f8bb5a709743cff",
+        "sourceSha256": "c170089640fd528b3a2117bd6306405951f22d4c6632dd625edf7607cd6d0717"
+      }
+    ],
+    "queryCount": 10,
+    "localCandidateLimit": 5,
+    "visibleRequestedLimit": 5,
+    "topK": 3,
+    "minimumUsefulHits": 8,
+    "maxVisibleUtf8Bytes": 49152,
+    "readSelectionBytes": 1024,
+    "maxReadPagesPerQuestion": 12,
+    "reranking": "local_only_no_jev_invoked",
+    "note": "Actual local candidate generation vs production-MCP visible ranking. No live LLM semantic-trigger/coverage or factual/legal certification; no reformulation/relabeling."
+  },
+  "summary": {
+    "queries": 10,
+    "localCandidateRecallHits": 10,
+    "usefulUserVisibleTop3Hits": 10,
+    "required": 8,
+    "passed": true,
+    "reranking": "local_only_no_jev_invoked",
+    "languageCoverage": "English only",
+    "researchModelCalls": 0,
+    "externalRerankerCalls": 0,
+    "sourceFetches": 0,
+    "modelInitializerAttemptsObserved": 0,
+    "stderrBytes": 0
+  },
+  "results": [
+    {
+      "id": "q01",
+      "query": "Can ordinary PLC blocks be authored outside Siemens tooling, and does the same exchange workflow work for safety code?",
+      "language": "en",
+      "acceptableRelevantReportIds": [
+        "tia-portal-offline-development"
+      ],
+      "status": "matches",
+      "localCandidates": [
+        "tia-portal-offline-development",
+        "plc-simulation-scl-runtime-comparison",
+        "deterministic-nested-diagram-html",
+        "iec-coverage-reconciled-35-categories",
+        "scram-mef-xml-gates-probabilities"
+      ],
+      "localCandidateRecallHit": true,
+      "visibleRanking": [
+        "tia-portal-offline-development",
+        "plc-simulation-scl-runtime-comparison",
+        "deterministic-nested-diagram-html",
+        "iec-coverage-reconciled-35-categories",
+        "scram-mef-xml-gates-probabilities"
+      ],
+      "visibleTop3": [
+        "tia-portal-offline-development",
+        "plc-simulation-scl-runtime-comparison",
+        "deterministic-nested-diagram-html"
+      ],
+      "usefulTop3Hit": true,
+      "reranking": "local_only_no_jev_invoked",
+      "localCandidateMs": 66.518,
+      "visibleLookupMs": 51.599,
+      "lookupVisibleUtf8Bytes": 16518,
+      "lookupPayloadSha256": "e4598a609d3a7362f84fa80fee62455950c4405fbc71a00fe8276ce1cd9ebcb0",
+      "localContinuation": 5,
+      "visibleContinuation": 5,
+      "reads": [
+        {
+          "reportId": "tia-portal-offline-development",
+          "revision": "000c7b553e287361833686a95f4cd313a814ebee679ead885564ac02dcb508b5",
+          "selection": {
+            "startByte": 6225,
+            "endByte": 7249
+          },
+          "pages": [
+            {
+              "visibleBytes": 5086,
+              "pageType": "body",
+              "bodyStart": 6225,
+              "bodyEnd": 7249,
+              "warningCount": 9,
+              "metadataWarningCount": 7,
+              "bodyNoticeCount": 1,
+              "successor": null,
+              "warningMode": "inline",
+              "contextOutstanding": false,
+              "citationCount": 0,
+              "unresolvedCitationCount": 0,
+              "revisionBoundCitationPointers": true,
+              "continuation": false
+            }
+          ],
+          "exactSelectedBytes": true,
+          "scopeDatesOriginWarningsPreserved": true,
+          "doesNotCertifyCoverageOrFreshVerification": true
+        }
+      ],
+      "elapsedMs": 142.055
+    },
+    {
+      "id": "q02",
+      "query": "Which approach keeps nested boxes and orthogonal connections at fixed positions in one self-contained HTML drawing?",
+      "language": "en",
+      "acceptableRelevantReportIds": [
+        "deterministic-nested-diagram-html"
+      ],
+      "status": "matches",
+      "localCandidates": [
+        "deterministic-nested-diagram-html",
+        "wireviz-cli-output-licensing-boundary",
+        "historical-cad-fea-mcp-toolchains",
+        "mayr-dual-brake-checker-wiring",
+        "motulator-drive-grid-capability-map"
+      ],
+      "localCandidateRecallHit": true,
+      "visibleRanking": [
+        "deterministic-nested-diagram-html",
+        "wireviz-cli-output-licensing-boundary",
+        "historical-cad-fea-mcp-toolchains",
+        "mayr-dual-brake-checker-wiring",
+        "motulator-drive-grid-capability-map"
+      ],
+      "visibleTop3": [
+        "deterministic-nested-diagram-html",
+        "wireviz-cli-output-licensing-boundary",
+        "historical-cad-fea-mcp-toolchains"
+      ],
+      "usefulTop3Hit": true,
+      "reranking": "local_only_no_jev_invoked",
+      "localCandidateMs": 38.645,
+      "visibleLookupMs": 42.797,
+      "lookupVisibleUtf8Bytes": 15370,
+      "lookupPayloadSha256": "0250c14b0003d05d026e8ac0e5bd9ea9e6a60dab011ec33285ffcccc1af98e8a",
+      "localContinuation": 5,
+      "visibleContinuation": 5,
+      "reads": [
+        {
+          "reportId": "deterministic-nested-diagram-html",
+          "revision": "dee9e5c43aabb0aa09bb752759374714302fb544153ee45ab48e2a0c425dbac7",
+          "selection": {
+            "startByte": 2208,
+            "endByte": 3232
+          },
+          "pages": [
+            {
+              "visibleBytes": 4903,
+              "pageType": "body",
+              "bodyStart": 2208,
+              "bodyEnd": 3232,
+              "warningCount": 13,
+              "metadataWarningCount": 10,
+              "bodyNoticeCount": 0,
+              "successor": null,
+              "warningMode": null,
+              "contextOutstanding": false,
+              "citationCount": 0,
+              "unresolvedCitationCount": 0,
+              "revisionBoundCitationPointers": true,
+              "continuation": false
+            }
+          ],
+          "exactSelectedBytes": true,
+          "scopeDatesOriginWarningsPreserved": true,
+          "doesNotCertifyCoverageOrFreshVerification": true
+        }
+      ],
+      "elapsedMs": 105.57
+    },
+    {
+      "id": "q03",
+      "query": "Which harness-documentation outputs need Graphviz, which survive without it, and why can generated HTML have different licensing concerns?",
+      "language": "en",
+      "acceptableRelevantReportIds": [
+        "wireviz-cli-output-licensing-boundary"
+      ],
+      "status": "matches",
+      "localCandidates": [
+        "wireviz-cli-output-licensing-boundary",
+        "sphinx-nine-technical-documentation",
+        "pymupdf-fallback-extraction-tradeoffs",
+        "linkml-contract-generation-semantics",
+        "deterministic-nested-diagram-html"
+      ],
+      "localCandidateRecallHit": true,
+      "visibleRanking": [
+        "wireviz-cli-output-licensing-boundary",
+        "sphinx-nine-technical-documentation",
+        "pymupdf-fallback-extraction-tradeoffs",
+        "linkml-contract-generation-semantics",
+        "deterministic-nested-diagram-html"
+      ],
+      "visibleTop3": [
+        "wireviz-cli-output-licensing-boundary",
+        "sphinx-nine-technical-documentation",
+        "pymupdf-fallback-extraction-tradeoffs"
+      ],
+      "usefulTop3Hit": true,
+      "reranking": "local_only_no_jev_invoked",
+      "localCandidateMs": 53.192,
+      "visibleLookupMs": 44.922,
+      "lookupVisibleUtf8Bytes": 16773,
+      "lookupPayloadSha256": "b48aeca6a2f5436ee14a095339086e9cf02d94fc2e34499d3bda5173652731d7",
+      "localContinuation": 5,
+      "visibleContinuation": 5,
+      "reads": [
+        {
+          "reportId": "wireviz-cli-output-licensing-boundary",
+          "revision": "b16d2c075daccbdce96ad4975548388f53c12ce35eb7601e6f8bb5a709743cff",
+          "selection": {
+            "startByte": 6447,
+            "endByte": 7471
+          },
+          "pages": [
+            {
+              "visibleBytes": 5987,
+              "pageType": "body",
+              "bodyStart": 6447,
+              "bodyEnd": 7471,
+              "warningCount": 11,
+              "metadataWarningCount": 7,
+              "bodyNoticeCount": 1,
+              "successor": null,
+              "warningMode": "inline",
+              "contextOutstanding": false,
+              "citationCount": 0,
+              "unresolvedCitationCount": 0,
+              "revisionBoundCitationPointers": true,
+              "continuation": false
+            }
+          ],
+          "exactSelectedBytes": true,
+          "scopeDatesOriginWarningsPreserved": true,
+          "doesNotCertifyCoverageOrFreshVerification": true
+        }
+      ],
+      "elapsedMs": 130.2
+    },
+    {
+      "id": "q04",
+      "query": "With two basic brake checkers, what wiring findings can be reused and which reference-potential and error-feedback connections remain unresolved?",
+      "language": "en",
+      "acceptableRelevantReportIds": [
+        "mayr-dual-brake-checker-wiring"
+      ],
+      "status": "matches",
+      "localCandidates": [
+        "mayr-dual-brake-checker-wiring",
+        "pymupdf-fallback-extraction-tradeoffs",
+        "mineru-document-parser-backends-api",
+        "frenic-lm2a-ups-rescue-topology",
+        "iec-coverage-gemini-historical-source"
+      ],
+      "localCandidateRecallHit": true,
+      "visibleRanking": [
+        "mayr-dual-brake-checker-wiring",
+        "pymupdf-fallback-extraction-tradeoffs",
+        "mineru-document-parser-backends-api",
+        "frenic-lm2a-ups-rescue-topology",
+        "iec-coverage-gemini-historical-source"
+      ],
+      "visibleTop3": [
+        "mayr-dual-brake-checker-wiring",
+        "pymupdf-fallback-extraction-tradeoffs",
+        "mineru-document-parser-backends-api"
+      ],
+      "usefulTop3Hit": true,
+      "reranking": "local_only_no_jev_invoked",
+      "localCandidateMs": 35.764,
+      "visibleLookupMs": 39.65,
+      "lookupVisibleUtf8Bytes": 17872,
+      "lookupPayloadSha256": "72ca2600326fff84cc346bce695530b6a1a2b8e8fbbdd61603aafd2ac5430ca1",
+      "localContinuation": 5,
+      "visibleContinuation": 5,
+      "reads": [
+        {
+          "reportId": "mayr-dual-brake-checker-wiring",
+          "revision": "95600cb26d8692c2bc644e368967b59036ada3ffe276c44157a3259b89365cfc",
+          "selection": {
+            "startByte": 2730,
+            "endByte": 3754
+          },
+          "pages": [
+            {
+              "visibleBytes": 5730,
+              "pageType": "body",
+              "bodyStart": 2730,
+              "bodyEnd": 3754,
+              "warningCount": 16,
+              "metadataWarningCount": 12,
+              "bodyNoticeCount": 0,
+              "successor": null,
+              "warningMode": null,
+              "contextOutstanding": false,
+              "citationCount": 2,
+              "unresolvedCitationCount": 2,
+              "revisionBoundCitationPointers": true,
+              "continuation": false
+            }
+          ],
+          "exactSelectedBytes": true,
+          "scopeDatesOriginWarningsPreserved": true,
+          "doesNotCertifyCoverageOrFreshVerification": true
+        }
+      ],
+      "elapsedMs": 102.188
+    },
+    {
+      "id": "q05",
+      "query": "Why is the earlier component standards matrix unsafe to reuse unqualified, and which reconciled investigation supersedes it?",
+      "language": "en",
+      "acceptableRelevantReportIds": [
+        "iec-coverage-gemini-historical-source",
+        "iec-coverage-reconciled-35-categories"
+      ],
+      "status": "matches",
+      "localCandidates": [
+        "iec-coverage-gemini-historical-source",
+        "mayr-dual-brake-checker-wiring",
+        "iec-coverage-reconciled-35-categories",
+        "frenic-lm2a-ups-rescue-topology",
+        "iec-coverage-opus5-edition-source"
+      ],
+      "localCandidateRecallHit": true,
+      "visibleRanking": [
+        "iec-coverage-gemini-historical-source",
+        "mayr-dual-brake-checker-wiring",
+        "iec-coverage-reconciled-35-categories",
+        "frenic-lm2a-ups-rescue-topology",
+        "iec-coverage-opus5-edition-source"
+      ],
+      "visibleTop3": [
+        "iec-coverage-gemini-historical-source",
+        "mayr-dual-brake-checker-wiring",
+        "iec-coverage-reconciled-35-categories"
+      ],
+      "usefulTop3Hit": true,
+      "reranking": "local_only_no_jev_invoked",
+      "localCandidateMs": 35.757,
+      "visibleLookupMs": 36.452,
+      "lookupVisibleUtf8Bytes": 17114,
+      "lookupPayloadSha256": "6b82116c2ce258222c8683e1a22157edfa397b2ba76e7089b6d7c7756b3142be",
+      "localContinuation": 5,
+      "visibleContinuation": 5,
+      "reads": [
+        {
+          "reportId": "iec-coverage-gemini-historical-source",
+          "revision": "100f27c71d664797ff860a2a105f06b1645a4cf2402204feb662cbf4d2e24009",
+          "selection": {
+            "startByte": 2411,
+            "endByte": 3435
+          },
+          "pages": [
+            {
+              "visibleBytes": 6393,
+              "pageType": "body",
+              "bodyStart": 2411,
+              "bodyEnd": 3435,
+              "warningCount": 15,
+              "metadataWarningCount": 10,
+              "bodyNoticeCount": 1,
+              "successor": "iec-coverage-reconciled-35-categories",
+              "warningMode": "inline",
+              "contextOutstanding": false,
+              "citationCount": 0,
+              "unresolvedCitationCount": 0,
+              "revisionBoundCitationPointers": true,
+              "continuation": false
+            }
+          ],
+          "exactSelectedBytes": true,
+          "scopeDatesOriginWarningsPreserved": true,
+          "doesNotCertifyCoverageOrFreshVerification": true
+        },
+        {
+          "reportId": "iec-coverage-reconciled-35-categories",
+          "revision": "6efea49bffe1804a64ce8019956b5e72cd1d7f7ade7e478635557f30bba75167",
+          "selection": {
+            "startByte": 3248,
+            "endByte": 4272
+          },
+          "pages": [
+            {
+              "visibleBytes": 6465,
+              "pageType": "body",
+              "bodyStart": 3248,
+              "bodyEnd": 4272,
+              "warningCount": 15,
+              "metadataWarningCount": 10,
+              "bodyNoticeCount": 1,
+              "successor": null,
+              "warningMode": "inline",
+              "contextOutstanding": false,
+              "citationCount": 0,
+              "unresolvedCitationCount": 0,
+              "revisionBoundCitationPointers": true,
+              "continuation": false
+            }
+          ],
+          "exactSelectedBytes": true,
+          "scopeDatesOriginWarningsPreserved": true,
+          "doesNotCertifyCoverageOrFreshVerification": true
+        }
+      ],
+      "elapsedMs": 121.621
+    },
+    {
+      "id": "q06",
+      "query": "How can generated schema validators preserve enum and field constraints, and where can contract-generator behavior drift?",
+      "language": "en",
+      "acceptableRelevantReportIds": [
+        "linkml-contract-generation-semantics"
+      ],
+      "status": "matches",
+      "localCandidates": [
+        "linkml-contract-generation-semantics",
+        "scram-mef-xml-gates-probabilities",
+        "deterministic-nested-diagram-html",
+        "wireviz-cli-output-licensing-boundary",
+        "tia-portal-offline-development"
+      ],
+      "localCandidateRecallHit": true,
+      "visibleRanking": [
+        "linkml-contract-generation-semantics",
+        "scram-mef-xml-gates-probabilities",
+        "deterministic-nested-diagram-html",
+        "wireviz-cli-output-licensing-boundary",
+        "tia-portal-offline-development"
+      ],
+      "visibleTop3": [
+        "linkml-contract-generation-semantics",
+        "scram-mef-xml-gates-probabilities",
+        "deterministic-nested-diagram-html"
+      ],
+      "usefulTop3Hit": true,
+      "reranking": "local_only_no_jev_invoked",
+      "localCandidateMs": 34.1,
+      "visibleLookupMs": 36.649,
+      "lookupVisibleUtf8Bytes": 15805,
+      "lookupPayloadSha256": "684135109f9260fcde3c5c607d05f84804ac0cd9e32289f993eb88241828e080",
+      "localContinuation": 5,
+      "visibleContinuation": 5,
+      "reads": [
+        {
+          "reportId": "linkml-contract-generation-semantics",
+          "revision": "13732fc8922489ae029f3a4f98f08d8ba277aadbd941c78f3719696f3573aaf2",
+          "selection": {
+            "startByte": 13570,
+            "endByte": 14594
+          },
+          "pages": [
+            {
+              "visibleBytes": 5729,
+              "pageType": "body",
+              "bodyStart": 13570,
+              "bodyEnd": 14594,
+              "warningCount": 10,
+              "metadataWarningCount": 7,
+              "bodyNoticeCount": 1,
+              "successor": null,
+              "warningMode": "inline",
+              "contextOutstanding": false,
+              "citationCount": 0,
+              "unresolvedCitationCount": 0,
+              "revisionBoundCitationPointers": true,
+              "continuation": false
+            }
+          ],
+          "exactSelectedBytes": true,
+          "scopeDatesOriginWarningsPreserved": true,
+          "doesNotCertifyCoverageOrFreshVerification": true
+        }
+      ],
+      "elapsedMs": 102.224
+    },
+    {
+      "id": "q07",
+      "query": "Which Python calculation approach produces an auditable HTML report, and does a displayed unit label enforce dimensional correctness?",
+      "language": "en",
+      "acceptableRelevantReportIds": [
+        "efficalc-auditable-calculation-reports"
+      ],
+      "status": "matches",
+      "localCandidates": [
+        "efficalc-auditable-calculation-reports",
+        "deterministic-nested-diagram-html",
+        "mineru-document-parser-backends-api",
+        "system-block-diagram-tool-evaluation",
+        "wireviz-cli-output-licensing-boundary"
+      ],
+      "localCandidateRecallHit": true,
+      "visibleRanking": [
+        "efficalc-auditable-calculation-reports",
+        "deterministic-nested-diagram-html",
+        "mineru-document-parser-backends-api",
+        "system-block-diagram-tool-evaluation",
+        "wireviz-cli-output-licensing-boundary"
+      ],
+      "visibleTop3": [
+        "efficalc-auditable-calculation-reports",
+        "deterministic-nested-diagram-html",
+        "mineru-document-parser-backends-api"
+      ],
+      "usefulTop3Hit": true,
+      "reranking": "local_only_no_jev_invoked",
+      "localCandidateMs": 34.946,
+      "visibleLookupMs": 32.735,
+      "lookupVisibleUtf8Bytes": 15942,
+      "lookupPayloadSha256": "6b162e26c9c74d90ec92c6aca60eb09ea9abfa4414203b5a225e4819c7faedf5",
+      "localContinuation": 5,
+      "visibleContinuation": 5,
+      "reads": [
+        {
+          "reportId": "efficalc-auditable-calculation-reports",
+          "revision": "d4c550d609633ff695ea54512e9947fc068ef56649db127385e3138facaff421",
+          "selection": {
+            "startByte": 6137,
+            "endByte": 7161
+          },
+          "pages": [
+            {
+              "visibleBytes": 7265,
+              "pageType": "body",
+              "bodyStart": 6137,
+              "bodyEnd": 7161,
+              "warningCount": 10,
+              "metadataWarningCount": 7,
+              "bodyNoticeCount": 2,
+              "successor": null,
+              "warningMode": "inline",
+              "contextOutstanding": false,
+              "citationCount": 0,
+              "unresolvedCitationCount": 0,
+              "revisionBoundCitationPointers": true,
+              "continuation": false
+            }
+          ],
+          "exactSelectedBytes": true,
+          "scopeDatesOriginWarningsPreserved": true,
+          "doesNotCertifyCoverageOrFreshVerification": true
+        }
+      ],
+      "elapsedMs": 90.841
+    },
+    {
+      "id": "q08",
+      "query": "What browser must be available for headless Plotly image export on Linux, and how did the newer architecture change deployment?",
+      "language": "en",
+      "acceptableRelevantReportIds": [
+        "kaleido-v1-headless-static-export"
+      ],
+      "status": "matches",
+      "localCandidates": [
+        "kaleido-v1-headless-static-export",
+        "openscad-runtime-headless-csg-export",
+        "scram-mef-xml-gates-probabilities",
+        "iec-coverage-reconciled-35-categories",
+        "mayr-dual-brake-checker-wiring"
+      ],
+      "localCandidateRecallHit": true,
+      "visibleRanking": [
+        "kaleido-v1-headless-static-export",
+        "openscad-runtime-headless-csg-export",
+        "scram-mef-xml-gates-probabilities",
+        "iec-coverage-reconciled-35-categories",
+        "mayr-dual-brake-checker-wiring"
+      ],
+      "visibleTop3": [
+        "kaleido-v1-headless-static-export",
+        "openscad-runtime-headless-csg-export",
+        "scram-mef-xml-gates-probabilities"
+      ],
+      "usefulTop3Hit": true,
+      "reranking": "local_only_no_jev_invoked",
+      "localCandidateMs": 31.368,
+      "visibleLookupMs": 29.016,
+      "lookupVisibleUtf8Bytes": 17345,
+      "lookupPayloadSha256": "54298f0ebe3924459fbe7ed50962ba9fd21400bd4879d9968be8f9b3277ec39a",
+      "localContinuation": 5,
+      "visibleContinuation": 5,
+      "reads": [
+        {
+          "reportId": "kaleido-v1-headless-static-export",
+          "revision": "67e683ff555de8513a589c24b7efee58b26aa226b38c5044d60e44afdd2187fd",
+          "selection": {
+            "startByte": 2690,
+            "endByte": 3714
+          },
+          "pages": [
+            {
+              "visibleBytes": 5480,
+              "pageType": "body",
+              "bodyStart": 2690,
+              "bodyEnd": 3714,
+              "warningCount": 11,
+              "metadataWarningCount": 8,
+              "bodyNoticeCount": 1,
+              "successor": null,
+              "warningMode": "inline",
+              "contextOutstanding": false,
+              "citationCount": 0,
+              "unresolvedCitationCount": 0,
+              "revisionBoundCitationPointers": true,
+              "continuation": false
+            }
+          ],
+          "exactSelectedBytes": true,
+          "scopeDatesOriginWarningsPreserved": true,
+          "doesNotCertifyCoverageOrFreshVerification": true
+        }
+      ],
+      "elapsedMs": 81.739
+    },
+    {
+      "id": "q09",
+      "query": "Which previous parser studies compare fallback PDF text and layout recovery with full structured extraction backends, including unresolved limitations?",
+      "language": "en",
+      "acceptableRelevantReportIds": [
+        "pymupdf-fallback-extraction-tradeoffs",
+        "mineru-document-parser-backends-api"
+      ],
+      "status": "matches",
+      "localCandidates": [
+        "pymupdf-fallback-extraction-tradeoffs",
+        "mineru-document-parser-backends-api",
+        "system-block-diagram-tool-evaluation",
+        "mayr-dual-brake-checker-wiring",
+        "iec-coverage-gemini-historical-source"
+      ],
+      "localCandidateRecallHit": true,
+      "visibleRanking": [
+        "pymupdf-fallback-extraction-tradeoffs",
+        "mineru-document-parser-backends-api",
+        "system-block-diagram-tool-evaluation",
+        "mayr-dual-brake-checker-wiring",
+        "iec-coverage-gemini-historical-source"
+      ],
+      "visibleTop3": [
+        "pymupdf-fallback-extraction-tradeoffs",
+        "mineru-document-parser-backends-api",
+        "system-block-diagram-tool-evaluation"
+      ],
+      "usefulTop3Hit": true,
+      "reranking": "local_only_no_jev_invoked",
+      "localCandidateMs": 35.016,
+      "visibleLookupMs": 37.463,
+      "lookupVisibleUtf8Bytes": 17535,
+      "lookupPayloadSha256": "0d94620b55095f39583932f5bd13e072513376a0fb79c23ab3ca59424c882a26",
+      "localContinuation": 5,
+      "visibleContinuation": 5,
+      "reads": [
+        {
+          "reportId": "pymupdf-fallback-extraction-tradeoffs",
+          "revision": "e1a805bd17f6d7a66d616b3dfd052b08fbc511b2b69be797a7a4b6650e1593cb",
+          "selection": {
+            "startByte": 12327,
+            "endByte": 13351
+          },
+          "pages": [
+            {
+              "visibleBytes": 14459,
+              "pageType": "body",
+              "bodyStart": 12327,
+              "bodyEnd": 13351,
+              "warningCount": 10,
+              "metadataWarningCount": 7,
+              "bodyNoticeCount": 5,
+              "successor": null,
+              "warningMode": "inline",
+              "contextOutstanding": false,
+              "citationCount": 0,
+              "unresolvedCitationCount": 0,
+              "revisionBoundCitationPointers": true,
+              "continuation": false
+            }
+          ],
+          "exactSelectedBytes": true,
+          "scopeDatesOriginWarningsPreserved": true,
+          "doesNotCertifyCoverageOrFreshVerification": true
+        },
+        {
+          "reportId": "mineru-document-parser-backends-api",
+          "revision": "3cb78e89467f8754302e869a1f5fe9d174e8c99b84d91130e0e3932bd4870078",
+          "selection": {
+            "startByte": 14715,
+            "endByte": 15739
+          },
+          "pages": [
+            {
+              "visibleBytes": 6672,
+              "pageType": "body",
+              "bodyStart": 14715,
+              "bodyEnd": 15739,
+              "warningCount": 11,
+              "metadataWarningCount": 7,
+              "bodyNoticeCount": 1,
+              "successor": null,
+              "warningMode": "inline",
+              "contextOutstanding": false,
+              "citationCount": 0,
+              "unresolvedCitationCount": 0,
+              "revisionBoundCitationPointers": true,
+              "continuation": false
+            }
+          ],
+          "exactSelectedBytes": true,
+          "scopeDatesOriginWarningsPreserved": true,
+          "doesNotCertifyCoverageOrFreshVerification": true
+        }
+      ],
+      "elapsedMs": 126.306
+    },
+    {
+      "id": "q10",
+      "query": "What must a fault-tree XML input declare, and why can schema validation succeed while probability analysis still fails?",
+      "language": "en",
+      "acceptableRelevantReportIds": [
+        "scram-mef-xml-gates-probabilities"
+      ],
+      "status": "matches",
+      "localCandidates": [
+        "scram-mef-xml-gates-probabilities",
+        "linkml-contract-generation-semantics",
+        "plc-simulation-scl-runtime-comparison",
+        "efficalc-auditable-calculation-reports",
+        "pymupdf-fallback-extraction-tradeoffs"
+      ],
+      "localCandidateRecallHit": true,
+      "visibleRanking": [
+        "scram-mef-xml-gates-probabilities",
+        "linkml-contract-generation-semantics",
+        "plc-simulation-scl-runtime-comparison",
+        "efficalc-auditable-calculation-reports",
+        "pymupdf-fallback-extraction-tradeoffs"
+      ],
+      "visibleTop3": [
+        "scram-mef-xml-gates-probabilities",
+        "linkml-contract-generation-semantics",
+        "plc-simulation-scl-runtime-comparison"
+      ],
+      "usefulTop3Hit": true,
+      "reranking": "local_only_no_jev_invoked",
+      "localCandidateMs": 22.04,
+      "visibleLookupMs": 38.926,
+      "lookupVisibleUtf8Bytes": 17210,
+      "lookupPayloadSha256": "b24024de4a354cf4c922ab559c8f3226e3f90bddc97e1809828ff707487ac835",
+      "localContinuation": 5,
+      "visibleContinuation": 5,
+      "reads": [
+        {
+          "reportId": "scram-mef-xml-gates-probabilities",
+          "revision": "843659a1f43f8fe0f66d886c7283eaaa10e59cae4352526fb4acfed5b21c0126",
+          "selection": {
+            "startByte": 10271,
+            "endByte": 11295
+          },
+          "pages": [
+            {
+              "visibleBytes": 7620,
+              "pageType": "body",
+              "bodyStart": 10271,
+              "bodyEnd": 11295,
+              "warningCount": 12,
+              "metadataWarningCount": 7,
+              "bodyNoticeCount": 2,
+              "successor": null,
+              "warningMode": "inline",
+              "contextOutstanding": false,
+              "citationCount": 0,
+              "unresolvedCitationCount": 0,
+              "revisionBoundCitationPointers": true,
+              "continuation": false
+            }
+          ],
+          "exactSelectedBytes": true,
+          "scopeDatesOriginWarningsPreserved": true,
+          "doesNotCertifyCoverageOrFreshVerification": true
+        }
+      ],
+      "elapsedMs": 88.202
+    }
+  ],
+  "correctionControl": {
+    "reportId": "iec-coverage-gemini-historical-source",
+    "successor": "iec-coverage-reconciled-35-categories",
+    "lowerSelection": {
+      "reportId": "iec-coverage-gemini-historical-source",
+      "revision": "100f27c71d664797ff860a2a105f06b1645a4cf2402204feb662cbf4d2e24009",
+      "selection": {
+        "startByte": 4310,
+        "endByte": 4822
+      },
+      "pages": [
+        {
+          "visibleBytes": 5877,
+          "pageType": "body",
+          "bodyStart": 4310,
+          "bodyEnd": 4822,
+          "warningCount": 15,
+          "metadataWarningCount": 10,
+          "bodyNoticeCount": 1,
+          "successor": "iec-coverage-reconciled-35-categories",
+          "warningMode": "inline",
+          "contextOutstanding": false,
+          "citationCount": 0,
+          "unresolvedCitationCount": 0,
+          "revisionBoundCitationPointers": true,
+          "continuation": false
+        }
+      ],
+      "exactSelectedBytes": true,
+      "scopeDatesOriginWarningsPreserved": true,
+      "doesNotCertifyCoverageOrFreshVerification": true
+    },
+    "exactOriginalCorrectionRange": {
+      "reportId": "iec-coverage-gemini-historical-source",
+      "revision": "100f27c71d664797ff860a2a105f06b1645a4cf2402204feb662cbf4d2e24009",
+      "selection": {
+        "startByte": 286,
+        "endByte": 616
+      },
+      "pages": [
+        {
+          "visibleBytes": 5687,
+          "pageType": "body",
+          "bodyStart": 286,
+          "bodyEnd": 616,
+          "warningCount": 15,
+          "metadataWarningCount": 10,
+          "bodyNoticeCount": 1,
+          "successor": "iec-coverage-reconciled-35-categories",
+          "warningMode": "inline",
+          "contextOutstanding": false,
+          "citationCount": 0,
+          "unresolvedCitationCount": 0,
+          "revisionBoundCitationPointers": true,
+          "continuation": false
+        }
+      ],
+      "exactSelectedBytes": true,
+      "scopeDatesOriginWarningsPreserved": true,
+      "doesNotCertifyCoverageOrFreshVerification": true
+    },
+    "warningSourceSha256": "bfddfd966b7855099c8981919256852c0424264db04a9ff87ed645d82997e9fe",
+    "importantContextNotInventedOrRefreshed": true
+  },
+  "metrics": {
+    "search_research": {
+      "calls": 10,
+      "totalVisibleBytes": 167484,
+      "maximumVisibleBytes": 17872
+    },
+    "read_research": {
+      "calls": 14,
+      "totalVisibleBytes": 93353,
+      "maximumVisibleBytes": 14459
+    }
+  },
+  "limitations": [
+    "Relevance labels frozen from scoped report applicability; ranking is not factual/source/legal verification.",
+    "Actual production-MCP visible text measured; no live-LLM semantic-trigger accuracy or physical-human key authentication claimed.",
+    "No Jev call was made; do not present these results as reranked or as proof Jev was unavailable.",
+    "Selected-page citation diagnostics/required-context flags remain visible; no unsupported fully-covered conclusion.",
+    "Local elapsed timings include warm filesystem/repeated code paths; no latency, token, cost-savings or remote-cancellation guarantee."
+  ]
+}

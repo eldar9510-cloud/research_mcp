@@ -1,0 +1,1506 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "deterministic-nested-diagram-html",
+      "path": "reports/deterministic-nested-diagram-html.md",
+      "revision": "dee9e5c43aabb0aa09bb752759374714302fb544153ee45ab48e2a0c425dbac7",
+      "sourceDigest": "37b15a95044f88ccd2f73e50dfddc354ea8e65d73143c138430fb2359b655fde",
+      "size": 6938,
+      "mtimeMs": 1793575830000,
+      "title": "Deterministic nested block-diagram tooling for standalone HTML",
+      "question": "How can a dense nested engineering diagram preserve fixed positions and orthogonal routing in self-contained HTML/SVG?",
+      "scope": "About 90 nodes, 190 typed edges, nested containers and author-controlled coordinates; ranking synthesis, not an implemented diagram.",
+      "summary": "Ranks layout-spec-to-SVG, JointJS, D2/TALA and maxGraph; contrasts fixed placement with auto-layout and flags TALA licensing.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:30:30.096Z",
+      "updated_at": "2026-11-01T23:30:30.096Z",
+      "imported_at": "2026-11-01T20:38:59.469Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Question date not promoted to researched_at."
+        },
+        {
+          "code": "report_warning",
+          "message": "Tool capabilities/license claims not independently checked."
+        },
+        {
+          "code": "report_warning",
+          "message": "Research interaction identifier needs publication review."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-provided public links unchecked."
+        },
+        {
+          "code": "report_warning",
+          "message": "Existing Python/Graphviz generator and column/family design not inspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Research interaction identifier present; no value copied."
+        },
+        {
+          "code": "report_warning",
+          "message": "Local project layout/edge-count context."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-stated generating agent label: deep-research-preview-04-2026; underlying model/platform remain unknown unless explicitly attributed."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "efficalc-auditable-calculation-reports",
+      "path": "reports/efficalc-auditable-calculation-reports.md",
+      "revision": "d4c550d609633ff695ea54512e9947fc068ef56649db127385e3138facaff421",
+      "sourceDigest": "5fc70889d61e36470a8283159f39a9bc301803b2f75f70861e55736b59725160",
+      "size": 14664,
+      "mtimeMs": 1793575942000,
+      "title": "efficalc 1.2.7 calculation reporting and limits",
+      "question": "What calculation/report pattern and output paths does efficalc provide, and what unit and rendering limits matter?",
+      "scope": "Historical Python3.12 package/source study; HTML/MathJax, overrides, result checks and PDF limits; not current execution.",
+      "summary": "Explains Calculation/Input/ReportBuilder, display-only units, pass/fail checks and browser-print PDF boundary.",
+      "researched_at": "2026-08-13",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:32:22.357Z",
+      "updated_at": "2026-11-01T23:32:22.357Z",
+      "imported_at": "2026-11-01T20:39:00.435Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Upstream URLs plus local package, proven-script and production-calculation paths; local dependencies uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Absolute environment/tmp paths and internal production calculations."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "frenic-lm2a-ups-rescue-topology",
+      "path": "reports/frenic-lm2a-ups-rescue-topology.md",
+      "revision": "9136a872f8100a460df7c540219b38b94b837d4febf6c3967b71fb9a229b8071",
+      "sourceDigest": "2d5b12f63aafa9c6cfbed8e38a54e1efe37249fa2bec9c2f854601e7376fa70a",
+      "size": 11475,
+      "mtimeMs": 1793575842000,
+      "title": "FRENIC-Lift LM2A emergency-descent UPS topology",
+      "question": "Is the LM2A rescue UPS inline or switched in parallel, and which terminal/model assumptions remain unresolved?",
+      "scope": "FRN0015LM2A-4E 400 V-class screw-lift rescue topology, contactor/BATRY sequencing and 230 V applicability; not wiring approval or certification.",
+      "summary": "Argues for an interlocked switched rescue supply; explicitly leaves terminal choice and FRN0015/FRN0019 applicability confirmation open.",
+      "researched_at": "2026-08-22",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:30:42.946Z",
+      "updated_at": "2026-11-01T23:30:42.946Z",
+      "imported_at": "2026-11-01T20:38:59.525Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "Gemini",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Report compliance language is not certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Manual is reported to say R-T or S-T; R-T is a synthesized default."
+        },
+        {
+          "code": "report_warning",
+          "message": "FRN0015-versus-FRN0019 230 V applicability remains open."
+        },
+        {
+          "code": "report_warning",
+          "message": "Safety-critical design not independently reviewed."
+        },
+        {
+          "code": "report_warning",
+          "message": "Fuji/manual/distributor/Scribd URLs not inspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Internal ELECTRONICS finding A and URANO-E panel context unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Internal machine/panel context and design gap."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-stated generating agent label: deep-research-preview-04-2026; underlying model/platform remain unknown unless explicitly attributed."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unresolved_citation",
+          "message": "Unresolved or ambiguous imported reference or footnote; no target was invented."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "historical-cad-fea-mcp-toolchains",
+      "path": "reports/historical-cad-fea-mcp-toolchains.md",
+      "revision": "ced5a2bca8bbd87ca0c6339f67a47e9bfb49c0b7949d76a2b60a3d51cce16766",
+      "sourceDigest": "3200a0d9f521bc1615a29f28621c10bac5ec99c2d2242e2efca5fe2ef0edbe65",
+      "size": 47957,
+      "mtimeMs": 1793575813000,
+      "title": "CAD, meshing, FEA and visualization MCP toolchain survey",
+      "question": "Which agent-accessible CAD, meshing, FEA and visualization projects were surveyed for mechanical engineering in August 2026?",
+      "scope": "Historical August-2026 CadQuery/FreeCAD, GMSH, CalculiX/Code_Aster and ParaView survey; not current repository metrics or readiness validation.",
+      "summary": "Maps mechanical-engineering MCP/toolchain options and reports experimental versus production-readiness claims.",
+      "researched_at": "2026-08-15",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:30:13.946Z",
+      "updated_at": "2026-11-01T23:30:13.946Z",
+      "imported_at": "2026-11-01T20:38:59.119Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Time-sensitive popularity/readiness claims not checked."
+        },
+        {
+          "code": "report_warning",
+          "message": "Export includes a research interaction identifier; publication review must decide its treatment explicitly."
+        },
+        {
+          "code": "report_warning",
+          "message": "Numbered web citations remain unverified; bibliography presence does not prove support. No linked page opened."
+        },
+        {
+          "code": "report_warning",
+          "message": "Research interaction identifier present; value not copied to this metadata."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-stated generating agent label: deep-research-preview-04-2026; underlying model/platform remain unknown unless explicitly attributed."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unresolved_citation",
+          "message": "Unresolved or ambiguous imported reference or footnote; no target was invented."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "iec-coverage-gemini-historical-source",
+      "path": "reports/iec-coverage-gemini-historical-source.md",
+      "revision": "100f27c71d664797ff860a2a105f06b1645a4cf2402204feb662cbf4d2e24009",
+      "sourceDigest": "bfddfd966b7855099c8981919256852c0424264db04a9ff87ed645d82997e9fe",
+      "size": 7754,
+      "mtimeMs": 1793575864000,
+      "title": "Historical Gemini IEC coverage matrix with known errors",
+      "question": "What did source A claim, which errors were recorded, and where is its reconciled successor?",
+      "scope": "Historical 35-category source kept for provenance/gap framing, not an unqualified current standards answer.",
+      "summary": "Original matrix with explicit four-number/stale-edition warning and reconciled-master pointer.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:31:04.177Z",
+      "updated_at": "2026-11-01T23:31:04.177Z",
+      "imported_at": "2026-11-01T20:38:59.665Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "Gemini",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": "iec-coverage-reconciled-35-categories",
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Wrong product numbers for MCB, PSU, safety relay and Ethernet; systematically stale editions."
+        },
+        {
+          "code": "report_warning",
+          "message": "Always carry exact correction notice and successor, including lower-section reads."
+        },
+        {
+          "code": "report_warning",
+          "message": "Full source URL list is in an unavailable session transcript."
+        },
+        {
+          "code": "report_warning",
+          "message": "Master basename resolves exactly to selected master; no invented repair."
+        },
+        {
+          "code": "report_warning",
+          "message": "Abbreviated source list and transcript-only URLs."
+        },
+        {
+          "code": "report_warning",
+          "message": "Local category vocabulary and transcript dependency."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-stated generating agent label: deep-research-preview-04-2026; underlying model/platform remain unknown unless explicitly attributed."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original successor filename remains in the unchanged body; archive successor ID is iec-coverage-reconciled-35-categories. Read the exact correction and successor context."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "transcript_dependency",
+          "message": "Possible transcript-only evidence; review before publication."
+        },
+        {
+          "code": "unverified_supersession",
+          "message": "Supersession link is unverified until reviewed."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "iec-coverage-opus5-edition-source",
+      "path": "reports/iec-coverage-opus5-edition-source.md",
+      "revision": "3a011ebec1d0735f498e4c5fd2bbf1d361f9f7e9c950ea3ba487228e223588ee",
+      "sourceDigest": "49eb6e25212795d1ccdd50b10702febab57c033606e3409ed909a6546f591347",
+      "size": 10642,
+      "mtimeMs": 1793575875000,
+      "title": "Opus-5 IEC edition survey with low-confidence entries",
+      "question": "Which editions did the independent IEC survey report, and which entries remained disputed or unconfirmed?",
+      "scope": "Source B in 35-category comparison; historical web-verification claims are source provenance, not scout verification or compliance evidence.",
+      "summary": "Edition-oriented matrix with substantial low-confidence notes and compact source references reused by the master.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:31:15.387Z",
+      "updated_at": "2026-11-01T23:31:15.387Z",
+      "imported_at": "2026-11-01T20:38:59.727Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "Opus-5"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Headline claims all primary numbers/editions verified, but same report lists unconfirmed/inferred entries."
+        },
+        {
+          "code": "report_warning",
+          "message": "Freshest/live-verified are historical source claims, not this scout checking sources."
+        },
+        {
+          "code": "report_warning",
+          "message": "Condensed identifiers must not be repaired into invented URLs."
+        },
+        {
+          "code": "report_warning",
+          "message": "Master basename resolves to selected master."
+        },
+        {
+          "code": "report_warning",
+          "message": "IEC publication IDs and compact publisher/domain references are not complete portable URLs and were not dereferenced."
+        },
+        {
+          "code": "report_warning",
+          "message": "No attributable human author established; no obvious credential pattern."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "iec-coverage-reconciled-35-categories",
+      "path": "reports/iec-coverage-reconciled-35-categories.md",
+      "revision": "6efea49bffe1804a64ce8019956b5e72cd1d7f7ade7e478635557f30bba75167",
+      "sourceDigest": "f54e43a90cf9dc845f2ec313a11708e415c57883f6ad18b1b2469d3a1533d1a9",
+      "size": 9658,
+      "mtimeMs": 1793575894000,
+      "title": "Reconciled IEC product-standard coverage for 35 categories",
+      "question": "How does the three-source reconciliation classify IEC coverage and genuine non-IEC gaps across industrial component categories?",
+      "scope": "Product-standard existence/classification for a 24 V DC/400 V AC machinery/lift-adjacent library; not per-part compliance or a verified current normative dossier.",
+      "summary": "Reconciles A errors with B edition claims and C role classification, retaining gaps, local holdings and machine-context caveats.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:31:34.705Z",
+      "updated_at": "2026-11-01T23:31:34.705Z",
+      "imported_at": "2026-11-01T20:38:59.808Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [
+        {
+          "id": "iec-coverage-gemini-historical-source",
+          "relationship": "corrects"
+        },
+        {
+          "id": "iec-coverage-opus5-edition-source",
+          "relationship": "reuses"
+        }
+      ],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source C YAML/SSOT outside eligible report children; not inspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Currency/verification wording is historical and unchecked."
+        },
+        {
+          "code": "report_warning",
+          "message": "Product-standard existence is explicitly not per-part compliance."
+        },
+        {
+          "code": "report_warning",
+          "message": "Local PDF/normative holdings are unavailable; do not import them or infer rights."
+        },
+        {
+          "code": "report_warning",
+          "message": "Selected A/B basenames resolve within proposed set."
+        },
+        {
+          "code": "report_warning",
+          "message": "Uninspected 2026-08-27-iec-coverage-source-component-map.yaml and NORMATIVE/data/component_standards_map.yaml."
+        },
+        {
+          "code": "report_warning",
+          "message": "LIBRARY/ELECTRIC, NORMATIVE/STANDARDS_PDF, ASM.PANEL and verified_editions references local-only."
+        },
+        {
+          "code": "report_warning",
+          "message": "Local library/standards holdings and dossier priorities."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unverified_relationship",
+          "message": "Relationship to iec-coverage-gemini-historical-source is unverified until reviewed."
+        },
+        {
+          "code": "unverified_relationship",
+          "message": "Relationship to iec-coverage-opus5-edition-source is unverified until reviewed."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "kaleido-v1-headless-static-export",
+      "path": "reports/kaleido-v1-headless-static-export.md",
+      "revision": "67e683ff555de8513a589c24b7efee58b26aa226b38c5044d60e44afdd2187fd",
+      "sourceDigest": "c71b8039903e24cc637e924f0861201131e31302048867fcbe60660cb6ca2032",
+      "size": 7781,
+      "mtimeMs": 1793575950000,
+      "title": "Kaleido v1 headless static export on Linux",
+      "question": "How does Kaleido1.3 export Plotly figures headlessly, and what browser dependencies and failure modes remain?",
+      "scope": "Historical Plotly6.8/Kaleido1.3/Chrome stack; PNG/SVG and batch export, deprecated APIs and alternatives; no rerun.",
+      "summary": "Distinguishes v1 browser discovery from v0 bundling and records failure modes, alternatives and source-stated smoke results.",
+      "researched_at": "2026-08-14",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:32:30.611Z",
+      "updated_at": "2026-11-01T23:32:30.611Z",
+      "imported_at": "2026-11-01T20:39:00.543Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "All bytes excerpted; not a full privacy/rights/legal audit."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Portable upstream/docs/community URLs plus local package/browser paths."
+        },
+        {
+          "code": "report_warning",
+          "message": "Machine browser/environment paths and output sizes remain."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "linkml-contract-generation-semantics",
+      "path": "reports/linkml-contract-generation-semantics.md",
+      "revision": "13732fc8922489ae029f3a4f98f08d8ba277aadbd941c78f3719696f3573aaf2",
+      "sourceDigest": "90cf8a5d04272fdcf6f4f2d315e641d8517a0d61eed4752f28a4c72daa347b3e",
+      "size": 29461,
+      "mtimeMs": 1793575933000,
+      "title": "LinkML schema and generated contract semantics",
+      "question": "How can LinkML generate JSON Schema and Pydantic contracts without silently changing constraints?",
+      "scope": "Historical source-only study of schema skeletons, enums, constraints, generator flags and version drift; no generator execution.",
+      "summary": "Maps YAML constraints to generators and identifies extra-field, pattern and dynamic-enum drift risks.",
+      "researched_at": "2026-08-13",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:32:13.518Z",
+      "updated_at": "2026-11-01T23:32:13.518Z",
+      "imported_at": "2026-11-01T20:39:00.214Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Official/tutorial/source URLs and raw relative source references; targets not opened."
+        },
+        {
+          "code": "report_warning",
+          "message": "Internal ELECTRONICS parity-gate context remains."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "mayr-dual-brake-checker-wiring",
+      "path": "reports/mayr-dual-brake-checker-wiring.md",
+      "revision": "95600cb26d8692c2bc644e368967b59036ada3ffe276c44157a3259b89365cfc",
+      "sourceDigest": "23ea244f08eaa3ef07fc461bdf211aa056b8d958a671551867d5a538c089bc8f",
+      "size": 8448,
+      "mtimeMs": 1793575853000,
+      "title": "Mayr SBC-plus, two checkers and two brakes: wiring research and gaps",
+      "question": "What topology/supply information is reusable for dual-brake Mayr/PLCnext wiring, and which terminal questions remain unanswered?",
+      "scope": "ROBA-SBC-plus, two Type 058.600.2 checkers, two ROBA-stop-M brakes and PLCnext AXC F 2152/SPLC 1000; partial applicability to final wiring.",
+      "summary": "Supports supply-domain/inline-checker discussion but leaves reference-potential links and Pin13 ERR unresolved; warns of product and MTTFd conflation.",
+      "researched_at": "2026-08-23",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:30:53.877Z",
+      "updated_at": "2026-11-01T23:30:53.877Z",
+      "imported_at": "2026-11-01T20:38:59.599Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Y12/Y13 and Y22/Y23 topology and Pin13 ERR routing unresolved."
+        },
+        {
+          "code": "report_warning",
+          "message": "Predictive/IrDA/IoT section describes a different Brake-Checker-plus product."
+        },
+        {
+          "code": "report_warning",
+          "message": "Verdict corrects MTTFd from 2200 years to stated 160 years at 60 C; neither number verified here."
+        },
+        {
+          "code": "report_warning",
+          "message": "Full source URLs are transcript-only; abbreviated/grouped citations remain unresolved."
+        },
+        {
+          "code": "report_warning",
+          "message": "Not approved wiring, safety integrity evidence or certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Uninspected session transcript containing full URLs."
+        },
+        {
+          "code": "report_warning",
+          "message": "Abbreviated manual/domain paths and grouped citation labels: do not invent URLs."
+        },
+        {
+          "code": "report_warning",
+          "message": "Internal URANO-E sheet 4 outside allowlist."
+        },
+        {
+          "code": "report_warning",
+          "message": "Machine-specific brake and safety-PLC architecture."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-stated generating agent label: deep-research-preview-04-2026; underlying model/platform remain unknown unless explicitly attributed."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "transcript_dependency",
+          "message": "Possible transcript-only evidence; review before publication."
+        },
+        {
+          "code": "unresolved_citation",
+          "message": "Unresolved or ambiguous imported reference or footnote; no target was invented."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "mineru-document-parser-backends-api",
+      "path": "reports/mineru-document-parser-backends-api.md",
+      "revision": "3cb78e89467f8754302e869a1f5fe9d174e8c99b84d91130e0e3932bd4870078",
+      "sourceDigest": "7cf2c602bf021ca5e7d43c54a655319708c49dd3ee65f7b5540f0800fa53f3ce",
+      "size": 31975,
+      "mtimeMs": 1793576001000,
+      "title": "MinerU3.4.4 backends, API and unresolved behavior",
+      "question": "What CLI/backend/API/structured-output capabilities does MinerU provide, and which uncertainties affect their use?",
+      "scope": "Historical version-pinned parser capability study; pipeline versus VLM/hybrid; report only, no parsing/PDF/OCR ingestion or network use.",
+      "summary": "Contrasts backends and output/API contracts while preserving uncertainty and an unverified source-stated license change.",
+      "researched_at": "2026-08-14",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:33:21.340Z",
+      "updated_at": "2026-11-01T23:33:21.340Z",
+      "imported_at": "2026-11-01T20:39:01.627Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Portable official/source/docs/PyPI references; performance and legal assertions unverified."
+        },
+        {
+          "code": "report_warning",
+          "message": "Internal holdings/hardware/workflow and local-use business assumptions."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unresolved_citation",
+          "message": "Unresolved or ambiguous imported reference or footnote; no target was invented."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "motulator-drive-grid-capability-map",
+      "path": "reports/motulator-drive-grid-capability-map.md",
+      "revision": "0b077590311b8b1cd6bbd24a9f104e626a307629ac201ab4300248fe1a6e4d9c",
+      "sourceDigest": "14b3eafeb24540f7874fba955062ed2a02e8eb781d824078d1a8da3493b377fa",
+      "size": 30335,
+      "mtimeMs": 1793575975000,
+      "title": "motulator0.7.3 motor-drive and grid capability map",
+      "question": "Which motor, control, solver and grid APIs exist, and what separates production use from unexercised capabilities?",
+      "scope": "Historical installed-source map of induction/synchronous drives, grid converters, limits and logging; not a new simulation.",
+      "summary": "Maps motor/control families and production-use boundaries, retaining limit-controller and solver checks as open.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:32:55.931Z",
+      "updated_at": "2026-11-01T23:32:55.931Z",
+      "imported_at": "2026-11-01T20:39:01.122Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Two upstream project/docs URLs plus extensive local installed-source and production-code references."
+        },
+        {
+          "code": "report_warning",
+          "message": "Absolute package path and internal production file/line mapping."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unresolved_citation",
+          "message": "Unresolved or ambiguous imported reference or footnote; no target was invented."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "openscad-runtime-headless-csg-export",
+      "path": "reports/openscad-runtime-headless-csg-export.md",
+      "revision": "5ecd12cbc0c23063054338204acf53544417f34449392a4fed65712a43d1bf54",
+      "sourceDigest": "0b3f27fa293988db0066aca8d736f04a0b8826101effb3bb79f9f2b56c87ae28",
+      "size": 19645,
+      "mtimeMs": 1793575991000,
+      "title": "OpenSCAD runtime, headless export and backend tradeoffs",
+      "question": "Which OpenSCAD build/backend fit headless CSG export, and are STEP interchange and deterministic output available?",
+      "scope": "Historical2026-08-13 snapshot versus2021.01 stable on Ubuntu24.04; runtime/CLI/export, not general CAD/FEA MCP surveying.",
+      "summary": "Compares Manifold/CGAL, source-stated STEP absence, CLI behavior and release/install/license constraints.",
+      "researched_at": "2026-08-14",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:33:11.717Z",
+      "updated_at": "2026-11-01T23:33:11.717Z",
+      "imported_at": "2026-11-01T20:39:01.475Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Official/source/issues/community URLs; executable downloads and source targets not followed."
+        },
+        {
+          "code": "report_warning",
+          "message": "Host/build details, absolute paths and internal lift/reverse-engineering context."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unresolved_citation",
+          "message": "Unresolved or ambiguous imported reference or footnote; no target was invented."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "plc-simulation-scl-runtime-comparison",
+      "path": "reports/plc-simulation-scl-runtime-comparison.md",
+      "revision": "bfb3b41150e7ea8802d9d0d8dd244f688216c3fc3967d281b3f889a8987f1437",
+      "sourceDigest": "16824e790ffe15df6f0c4f2e17b62ebbb12cea8a7ccc193501548839134ac99e",
+      "size": 12079,
+      "mtimeMs": 1793575916000,
+      "title": "Open-source PLC simulation versus Siemens SCL validation",
+      "question": "Which runtime/mock strategy can exercise SCL-like logic, and what vendor validation does it fail to supply?",
+      "scope": "OpenPLC/GOPLC/AWLSim/Beremiz/PyLC comparison for testing outside TIA; not proof of exact Siemens SCL compilation or safety behavior.",
+      "summary": "Separates standard ST runtimes from SCL and recommends Python mocks first, with dual-syntax and TIA-validation limits.",
+      "researched_at": "2026-07-21",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:31:56.021Z",
+      "updated_at": "2026-11-01T23:31:56.021Z",
+      "imported_at": "2026-11-01T20:39:00.005Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Mocks/alternative ST runtimes do not validate TIA compilation or exact SCL semantics."
+        },
+        {
+          "code": "report_warning",
+          "message": "Maturity, license and syntax-overlap claims unchecked."
+        },
+        {
+          "code": "report_warning",
+          "message": "Research-input labels are not invented report authorship."
+        },
+        {
+          "code": "report_warning",
+          "message": "Tickets #001A/#010a/#010, CONTROL_LOGIC.md and fb_weighing context uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Only source-provided links retained; none fetched/repaired."
+        },
+        {
+          "code": "report_warning",
+          "message": "Local ticket and control-logic workflow context."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-stated research inputs: Gemini research, Claude web research; these do not establish report authorship or producing platform."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "pymupdf-fallback-extraction-tradeoffs",
+      "path": "reports/pymupdf-fallback-extraction-tradeoffs.md",
+      "revision": "e1a805bd17f6d7a66d616b3dfd052b08fbc511b2b69be797a7a4b6650e1593cb",
+      "sourceDigest": "2ab33aad2f36a3f38f152eae7c0c5ab472c1284fe730d8707d1d7cc4865cc13a",
+      "size": 27079,
+      "mtimeMs": 1793575967000,
+      "title": "PyMuPDF fallback extraction and licensing tradeoffs",
+      "question": "Which PyMuPDF extraction modes and layout/table remedies fit a fallback engine, and what limitations and licensing questions remain?",
+      "scope": "Historical1.28.2 engineering-document fallback study; report text only, no PDFs/standards/source-document ingestion.",
+      "summary": "Surveys flags, table/OCR/layout routes, example shortlist and reading-order pitfalls; retains unresolved internal-use licensing interpretation.",
+      "researched_at": "2026-08-14",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:32:47.437Z",
+      "updated_at": "2026-11-01T23:32:47.437Z",
+      "imported_at": "2026-11-01T20:39:00.910Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Portable docs/source/community/licensing URLs; targets and legal claims not rechecked."
+        },
+        {
+          "code": "report_warning",
+          "message": "NORMATIVE/ELECTRONICS holdings and local installation context; holdings not read."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "scram-mef-xml-gates-probabilities",
+      "path": "reports/scram-mef-xml-gates-probabilities.md",
+      "revision": "843659a1f43f8fe0f66d886c7283eaaa10e59cae4352526fb4acfed5b21c0126",
+      "sourceDigest": "76ce92cf004096dd8ad0e54bf9fcc465ba2cdceeced7016cdd339f71118caa19",
+      "size": 23216,
+      "mtimeMs": 1793575983000,
+      "title": "SCRAM Open-PSA MEF XML gates and probability semantics",
+      "question": "How must SCRAM MEF XML define gates/events/probabilities, and what can validation miss?",
+      "scope": "Historical0.16.2 schema/binary investigation of XML inputs and small probability templates; not safety/compliance or PFHd certification.",
+      "summary": "Explains required structures and retains the distinction between schema validation and analysis-time checks.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:33:03.407Z",
+      "updated_at": "2026-11-01T23:33:03.407Z",
+      "imported_at": "2026-11-01T20:39:01.296Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Local schema/source/example/test paths only; zero URL matches. Dependencies unopened; portable evidence unresolved."
+        },
+        {
+          "code": "report_warning",
+          "message": "Internal installation/template paths and safety-chain context; no safety claim validated."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unresolved_citation",
+          "message": "Unresolved or ambiguous imported reference or footnote; no target was invented."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "sphinx-nine-technical-documentation",
+      "path": "reports/sphinx-nine-technical-documentation.md",
+      "revision": "1b75d2e0c53dd0d0f3eed67aa4f022311c411d7eb79b5dba1903c65f053f5aa2",
+      "sourceDigest": "cb8fc05c180e413dec0ff1c6ef916e5082b440fa6139ecef7a054627a62448e9",
+      "size": 34205,
+      "mtimeMs": 1793575959000,
+      "title": "Sphinx9.1 technical-documentation capabilities and migration",
+      "question": "Which Sphinx9.1 builders, directives and extensions fit technical documentation, and which older tutorial assumptions no longer apply?",
+      "scope": "Documentation/source research for Sphinx9.1/Python3.12/sphinx-click6.2; explicitly not execution-proven.",
+      "summary": "Surveys document generation and version changes, flags stale tutorial output and proposes official example ports.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:32:39.595Z",
+      "updated_at": "2026-11-01T23:32:39.595Z",
+      "imported_at": "2026-11-01T20:39:00.622Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Per-section official URLs; copied quickstart-template and tutorial examples require attribution/rights review."
+        },
+        {
+          "code": "report_warning",
+          "message": "Environment and internal TECH_DOC/PLC context; tutorial author example is not report authorship."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unresolved_citation",
+          "message": "Unresolved or ambiguous imported reference or footnote; no target was invented."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "system-block-diagram-tool-evaluation",
+      "path": "reports/system-block-diagram-tool-evaluation.md",
+      "revision": "6ee259e40799e41374284a02e9e2af924ab1e65262790e95d6187b09ccdac887",
+      "sourceDigest": "8925b971c8eeb2ba23665dab4863888c2f30fc7d7602c5180db2e2153b108e12",
+      "size": 12535,
+      "mtimeMs": 1793575906000,
+      "title": "System block-diagram tool evaluation and Mermaid-first recommendation",
+      "question": "Which diagram format balances simple owner editing and recoverable architecture for a four-column car lift?",
+      "scope": "Functional architecture, not terminal wiring; Mermaid/D2/draw.io/Graphviz in safety/power/network/I-O context.",
+      "summary": "Recommends Mermaid-first with draw.io initial-editing fallback, retaining comparative tradeoffs and a proposed diagram plan.",
+      "researched_at": "2026-07-21",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:31:46.474Z",
+      "updated_at": "2026-11-01T23:31:46.474Z",
+      "imported_at": "2026-11-01T20:38:59.891Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Inventory and safety-chain context not validated engineering evidence."
+        },
+        {
+          "code": "report_warning",
+          "message": "Thin external citation context; tool capabilities not verified."
+        },
+        {
+          "code": "report_warning",
+          "message": "Different constraints from fixed-coordinate HTML survey; no supersession inferred."
+        },
+        {
+          "code": "report_warning",
+          "message": "Uninspected io_allocation.csv, bom.csv, car_lift.qet sheets 01-04."
+        },
+        {
+          "code": "report_warning",
+          "message": "Proposed electronics/diagrams paths and future diagram artifacts."
+        },
+        {
+          "code": "report_warning",
+          "message": "Component inventory, machine architecture and topology."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "tia-portal-offline-development",
+      "path": "reports/tia-portal-offline-development.md",
+      "revision": "000c7b553e287361833686a95f4cd313a814ebee679ead885564ac02dcb508b5",
+      "sourceDigest": "87b8c8c966aa4e6738d6d1a245e1d902928c1c144d82e6f46a6f8f9bec88ea38",
+      "size": 14574,
+      "mtimeMs": 1793575925000,
+      "title": "TIA Portal offline development: standard versus safety code",
+      "question": "What can be authored/versioned outside TIA, and how do SCL and safety F-LAD/F-FBD workflows differ?",
+      "scope": "External SCL, VCI, Openness and editor workflows; vendor/certification assertions preserved as unchecked report claims.",
+      "summary": "Compares exchange options and distinguishes standard/safety artifacts, workflow limits and validation needs.",
+      "researched_at": "2026-07-21",
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:32:05.271Z",
+      "updated_at": "2026-11-01T23:32:05.271Z",
+      "imported_at": "2026-11-01T20:39:00.113Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Safety-language/certification/hardware-test assertions not verified or professional assurance."
+        },
+        {
+          "code": "report_warning",
+          "message": "Historical vendor/version constraints may not describe current products."
+        },
+        {
+          "code": "report_warning",
+          "message": "Tickets #001/#003 and electronics/tia_portal source/safety paths uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Public vendor/manual/community URLs unchecked."
+        },
+        {
+          "code": "report_warning",
+          "message": "Internal workflow/file layout."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    },
+    {
+      "id": "wireviz-cli-output-licensing-boundary",
+      "path": "reports/wireviz-cli-output-licensing-boundary.md",
+      "revision": "b16d2c075daccbdce96ad4975548388f53c12ce35eb7601e6f8bb5a709743cff",
+      "sourceDigest": "c170089640fd528b3a2117bd6306405951f22d4c6632dd625edf7607cd6d0717",
+      "size": 15467,
+      "mtimeMs": 1793576019000,
+      "title": "WireViz CLI outputs, Graphviz failures and license boundaries",
+      "question": "Which WireViz outputs work without Graphviz, and how do failures/generated-HTML licensing affect distribution?",
+      "scope": "Historical0.4.1 CLI/output/licensing study; no harness execution; source-check date is not assigned as original research date.",
+      "summary": "Provides output/PATH failure matrix and distinguishes rendered artifacts from template-bearing HTML, retaining license uncertainty.",
+      "researched_at": null,
+      "last_improved_at": null,
+      "created_at": "2026-11-01T23:33:39.482Z",
+      "updated_at": "2026-11-01T23:33:39.482Z",
+      "imported_at": "2026-11-01T20:39:01.878Z",
+      "language": "en",
+      "origin": {
+        "kind": "imported",
+        "platform": "unknown",
+        "author": "unknown",
+        "model": "unknown"
+      },
+      "related_reports": [],
+      "superseded_by": null,
+      "warnings": [
+        {
+          "code": "report_warning",
+          "message": "Imported without fresh source or technical verification; historical findings are not current compliance, safety or legal certification."
+        },
+        {
+          "code": "report_warning",
+          "message": "Original report bytes/citations are preserved. Third-party quotations, code and sources retain their own rights; unresolved local/transcript references remain unavailable."
+        },
+        {
+          "code": "report_warning",
+          "message": "Preserve limitations and uncertainty; no technical verification/current-applicability claim."
+        },
+        {
+          "code": "report_warning",
+          "message": "Upstream repository plus local package/source paths; source license excerpt is not report-wide licensing grant."
+        },
+        {
+          "code": "report_warning",
+          "message": "Absolute user/environment paths, dependency versions and internal verification-script context."
+        },
+        {
+          "code": "report_warning",
+          "message": "Source-era module/HANDOFF context and linked dependencies unavailable/uninspected."
+        },
+        {
+          "code": "report_warning",
+          "message": "Facts, execution/benchmark claims and legal assertions not independently checked."
+        },
+        {
+          "code": "unknown_research_date",
+          "message": "Original research date unknown; import is not verification."
+        },
+        {
+          "code": "unknown_origin",
+          "message": "Original platform or author unknown; review attribution."
+        },
+        {
+          "code": "local_dependency",
+          "message": "Local file reference may not be portable; review before publication."
+        },
+        {
+          "code": "unverified_import",
+          "message": "Imported claims and publication rights have not been checked."
+        }
+      ]
+    }
+  ]
+}

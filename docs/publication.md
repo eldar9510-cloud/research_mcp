@@ -4,7 +4,7 @@
 
 ## Setup and use
 
-Use the [pinned fresh setup](setup.md) and [acceptance contract](acceptance.md): Node >=22.19, project Pi CLI/SDK 0.84.2, installed adapter 2.26.1, three existing absolute disjoint roots and inspected project extensions. For a code+data checkout, the archive is its Git root and work/import directories are siblings outside it. Current engine-source publication is pending; do not assume a public clone or global Pi 1.5.0 is the supported setup. Local-only acceptance remains available unchanged through its digest-bound MCP broker. Publication is an ordinary **host command**, not an MCP/research/model tool:
+Use the [pinned fresh setup](setup.md) and [acceptance contract](acceptance.md): Node >=22.19, project Pi CLI/SDK 0.84.2, installed adapter 2.26.1, three existing absolute disjoint roots and inspected project extensions. For a code+data checkout, the archive is its Git root and work/import directories are siblings outside it. Identify an engine-containing revision before following the setup guide; global Pi 1.5.0 is not the tested target. [Issue #11](https://github.com/eldar9510-cloud/research_mcp/issues/11) records engine-source publication separately from report publication. Local-only acceptance remains available unchanged through its digest-bound MCP broker. Publication is an ordinary **host command**, not an MCP/research/model tool:
 
 ```text
 /research-publish <proposalId> <existing-remote-name> <current-branch>

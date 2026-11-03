@@ -1,5 +1,7 @@
 # v0 candidate evidence — not full #11 acceptance
 
+This page preserves the **2026-11-02 preparation checkpoint**, including its then-pending steps, frozen observations and original failures. Subsequent review, integration, approval and publication state are recorded in [issue #11](https://github.com/eldar9510-cloud/research_mcp/issues/11). Historical future-step and pause statements below are not current execution permissions; the original measurements and distinctions between controlled and real operations remain unchanged.
+
 **2026-11-02: bounded local sign-off candidate; #11 and engine publication remain pending.** Owner requested a pause after preparation task #50: independent review/integration (#51) and publication/issue closure (#52) must not start without a new explicit resume. The local base `26069b2b9c4d20f7aec3a4fa43337c62828a9e67` normally merges accepted engine `bdd2d703901f76a95c93eaff33aacb14da2a321b` with public data/evidence `265fc3c93448dcc6393f1a127cc347ce8729d9e2`. Its twenty reports, `INDEX.json`, frozen queries and first results remain byte-identical to that public data. Fifty-one prior engine commits are still unpublished. Documentation/test observations are not a release commit, tracker closure or permission to push that history.
 
 ## New candidate checks

@@ -2,7 +2,7 @@
 
 A reusable research library for Pi: find previous investigations, reuse what applies, improve requested gaps, and publish reviewed results for future sessions.
 
-**Status: local v0 release candidate; engine publication and #11 sign-off pending.** The accepted engine and the already-public twenty-report corpus are combined locally. The public report/evaluation branch does **not yet contain the engine**; a public clone is not currently a working installation. No release or completion of #11 is claimed. See the [evidence and remaining gates](docs/v0-signoff.md).
+**Release status:** [Issue #11](https://github.com/eldar9510-cloud/research_mcp/issues/11) records current acceptance and publication state. This checkout combines the engine and the already-approved twenty-report corpus. Follow the setup guide only from an identified engine-containing revision: the historical report/evaluation-only commit `265fc3c93448dcc6393f1a127cc347ce8729d9e2` does not contain a runnable engine. See the [labelled evidence and limitations](docs/v0-signoff.md); this README does not independently declare v0 acceptance.
 
 The public [twenty-report/ten-question evaluation](evaluation/issue10/README.md) recorded **10/10 useful top-three results** (required: 8/10), using local ranking, not Jev. Reports retain historical/unknown dates, imported origin, citations and correction warnings; retrieval and publication do not verify their conclusions or source rights.
 

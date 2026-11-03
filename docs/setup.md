@@ -1,6 +1,6 @@
 # Pinned candidate setup
 
-**Engine release/publication is pending.** At the 2026-11-02 sign-off snapshot, public commit `265fc3c93448dcc6393f1a127cc347ce8729d9e2` contains twenty approved reports and evaluation evidence, not the engine. Obtain the identified local candidate from the maintainer, or wait for an approved source release. Do not assume a public clone already runs these commands. See [v0-signoff.md](v0-signoff.md) for what was actually checked.
+Use an identified **engine-containing checkout** for these commands. The historical 2026-11-02 public snapshot `265fc3c93448dcc6393f1a127cc347ce8729d9e2` contains twenty approved reports and evaluation evidence, not the engine. [Issue #11](https://github.com/eldar9510-cloud/research_mcp/issues/11) records current acceptance and source-publication state; do not infer either from a local checkout. See [v0-signoff.md](v0-signoff.md) for the labelled verification evidence. This guide does not authorize installation/network access or change global configuration.
 
 ## Supported combination
 

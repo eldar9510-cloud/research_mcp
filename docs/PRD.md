@@ -472,6 +472,8 @@ Search results expose enough information to decide what to read:
 
 **Proposed starting defaults:** five candidates, short summaries, bounded excerpts, and no automatic full-report expansion. Exact byte/character limits should be tested with the representative corpus and documented as part of the tool contract.
 
+**RET-05 — Owner-approved Shape improvement (2026-11-05):** Agents in different projects share the same research MCP. Add bounded local section/passage discovery within an explicitly selected report, exposed through MCP rather than duplicated project scripts. Return original-text navigation previews and exact revision-bound selections for the existing reader; preserve scope, dates, warnings, citations and explicit omissions. Keep original reports unchanged, require no embeddings/services, and assess applicability against the consuming project's constraints. Passage discovery is not evidence qualification, semantic search, translation or coverage certification. Verify access from unrelated project working directories and supported concurrent-client behavior.
+
 ### 8.4 Jev's role
 
 **RET-02:** Reuse the existing Jev integration only for bounded relevance judgments over supplied candidates when useful.
@@ -849,6 +851,8 @@ This is a proposal for a future repository, not a directory tree created by this
 **STORE-04:** Do not mutate the user's original source files during import. The source location is input, not the managed archive.
 
 **STORE-05:** The service should not require a background indexing daemon or a persistent database for v0.
+
+**STORE-06 — Shared-client write coordination (2026-11-05):** Cooperating processes must not concurrently mutate the same proposal or accepted collection. Use small exclusive root locks with explicit busy failure, no automatic retry or abandoned-lock recovery; retain the single controlled writer for research-runtime recovery and publication. Read-only clients retain exact-revision checks and do not inherit other sessions' approvals. This is not a new daemon, durable queue, multiuser permission system or crash-proof transaction.
 
 ### 14.3 Configuration surface
 

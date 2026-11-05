@@ -5,6 +5,7 @@ import { isAbsolute, join, relative, resolve, sep, dirname, parse } from 'node:p
 import { z } from 'zod';
 import { reportDiff } from './research-diff.js';
 import { retainedSourceUrls } from './retained-sources.js';
+import { findPassages } from './passages.js';
 
 const id = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100);
 const label = z.string().min(1).max(512).refine(s => s.trim().length > 0 && !/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(s));
@@ -325,14 +326,46 @@ function safeRecord(m) {
       typeof x === 'string' && !Number.isNaN(Date.parse(x)) && new Date(x).toISOString() === x);
 }
 function searchTerms(text) { return text.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []; }
-function relevance(entry, terms) {
-  const fields = [[entry.title, 8], [entry.question, 7], [entry.summary, 4], [entry.scope, 3],
-    [entry.id, 3], [entry.language, 1], [entry.related_reports.map(x => x.id).join(' '), 1]];
-  return terms.reduce((total, term) => total + fields.reduce((score, [text, weight]) =>
-    score + (searchTerms(text).some(word => word === term) ? weight : 0), 0), 0);
+function rankCatalogue(entries, terms) {
+  const documents = entries.map(entry => ({ entry,
+    fields: [[entry.title, 8], [entry.question, 7], [entry.summary, 4], [entry.scope, 3],
+      [entry.id, 3], [entry.language, 1], [entry.related_reports.map(x => x.id).join(' '), 1]]
+      .map(([text, weight]) => [new Set(searchTerms(text)), weight]) }));
+  // IDF-weighted presence, not semantic confidence: ubiquitous query words
+  // must not bury specific identifiers as the shared collection grows.
+  const idf = new Map(terms.map(term => [term, 1 + Math.log((documents.length + 1) /
+    (1 + documents.filter(doc => doc.fields.some(([words]) => words.has(term))).length))]));
+  return documents.map(({ entry, fields }) => ({ entry, relevance: terms.reduce((total, term) =>
+    total + idf.get(term) * fields.reduce((score, [words, weight]) => score + (words.has(term) ? weight : 0), 0), 0) }))
+    .filter(item => item.relevance > 0).sort((a, b) => b.relevance - a.relevance || (a.entry.id < b.entry.id ? -1 : a.entry.id > b.entry.id ? 1 : 0));
 }
 
-/** Import is serialized within this instance; separate processes must not share a work root. */
+// Fail fast across MCP processes; never steal a crashed writer's lock or retry.
+// This coordinates cooperating local clients, not arbitrary same-user programs.
+async function withWriterLock(root, action) {
+  await noSymlinks(root);
+  const path = join(root, '.research-writer.lock');
+  let handle;
+  try { handle = await fs.open(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600); }
+  catch (error) {
+    if (error.code === 'EEXIST') fail('archive_busy', 'A research writer lock exists. No operation started; wait for its owner or inspect an abandoned .research-writer.lock explicitly. No automatic retry or lock recovery.');
+    throw error;
+  }
+  try {
+    const held = await handle.stat();
+    try {
+      await handle.writeFile(JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }) + '\n');
+      return await action();
+    } finally {
+      const current = await fs.lstat(path);
+      if (!current.isFile() || current.dev !== held.dev || current.ino !== held.ino)
+        fail('archive_unavailable', 'Writer lock changed; inspect local operation state before any retry. A write may already have completed.');
+      await fs.unlink(path);
+    }
+  } finally { await handle.close(); }
+}
+
+/** Mutations queue within an instance and take exclusive cross-process root locks. */
 export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes = 2048, maxSearchResults = 5,
   now = () => new Date().toISOString(), writeCheckpoint = () => {} }) {
   if (![archiveRoot, workRoot, importRoot].every(p => typeof p === 'string' && isAbsolute(p)) ||
@@ -683,8 +716,7 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
     const { index, revision: catalogueRevision } = await catalogue();
     const terms = [...new Set(searchTerms(query))];
     if (terms.length === 0 || terms.length > 32) fail('invalid_input', 'Search query has no usable terms or too many terms');
-    const ranked = index.entries.map(e => ({ entry: e, relevance: relevance(e, terms) }))
-      .filter(e => e.relevance > 0).sort((a, b) => b.relevance - a.relevance || (a.entry.id < b.entry.id ? -1 : a.entry.id > b.entry.id ? 1 : 0));
+    const ranked = rankCatalogue(index.entries, terms);
     if (offset > ranked.length) fail('invalid_input', 'Search offset exceeds match count');
     return { ok: true, status: ranked.length ? 'matches' : 'empty', catalogueRevision,
       candidates: await Promise.all(ranked.slice(offset, offset + limit).map(async ({ entry, relevance: score }) => {
@@ -702,7 +734,7 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
       nextOffset: offset + limit < ranked.length ? offset + limit : null,
       relevanceNote: 'Lexical relevance only; not verified, current or factual trust.' };
   }
-  async function readAccepted(args, pageBytes = args.pageBytes ?? maxReadBytes) {
+  async function acceptedRevision(args) {
     await ready();
     cleanReportId(args.reportId);
     let requestedBytes;
@@ -723,8 +755,33 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
       ? { ...parseReport(requestedBytes, args.reportId), bytes: requestedBytes } : await acceptedFile(args.reportId);
     if (sha(bytes) !== entry.revision || JSON.stringify(entryFor(saved, entry.revision, bytes.length, entry.mtimeMs)) !== JSON.stringify(entry))
       fail('catalogue_stale', 'Accepted report and catalogue differ; inspect reports/ and run rebuild_catalogue');
+    return { saved, body, text, entry };
+  }
+  async function readAccepted(args, pageBytes = args.pageBytes ?? maxReadBytes) {
+    const { saved, body, text, entry } = await acceptedRevision(args);
     return page({ saved: { ...saved, revision: entry.revision, sourceDigest: saved.sourceDigest,
       state: 'LOCAL_ACCEPTED_UNPUBLISHED', warnings: entry.warnings }, body, text }, args, pageBytes, { reportId: args.reportId });
+  }
+  async function locatePassages({ reportId, expectedRevision, query, limit = 3 }) {
+    if (typeof expectedRevision !== 'string' || !digestPattern.test(expectedRevision) ||
+        typeof query !== 'string' || !query.isWellFormed() || Buffer.byteLength(query) > 512 ||
+        !Number.isInteger(limit) || limit < 1 || limit > 5)
+      fail('invalid_input', 'Locate requires a report ID, exact expectedRevision, short query and limit 1..5');
+    const terms = [...new Set(searchTerms(query))];
+    if (!terms.length || terms.length > 32) fail('invalid_input', 'Locate query has no usable terms or too many terms');
+    const { saved, text, entry } = await acceptedRevision({ reportId, expectedRevision });
+    const notices = importantNotices(text);
+    const located = findPassages(text, markdownLines(text), terms, limit);
+    const read = selection => ({ reportId, expectedRevision, selection });
+    return { ok: true, status: located.passages.length ? 'matches' : 'empty', reportId, revision: expectedRevision,
+      sourceDigest: saved.sourceDigest, metadata: saved.metadata,
+      warnings: [...entry.warnings, ...(notices.length ? [{ code: 'body_notice', message: 'Read complete exact warning/correction context before relying on selected evidence.' }] : [])],
+      warningContext: notices.length ? { ...noticeSignal(text, notices, { reportId }, expectedRevision),
+        contextOutstanding: true, read: { reportId, expectedRevision, warningOffset: 0 } } : null,
+      totalBlocks: located.blockCount, matchedBlocks: located.matchedBlocks, omittedMatches: located.omittedMatches,
+      passages: located.passages.map(({ selection, section, ...passage }) => ({ ...passage,
+        read: read(selection), sectionRead: read(section) })),
+      relevanceNote: 'Local exact-term passage discovery only, not coverage, factual verification or fresh evidence. Previews may omit decisive context. Use read pointers unchanged and finish required warning/citation continuations; sectionRead expands the governing section. Empty means no lexical passage match in this report, not absence of an answer.' };
   }
   async function reviewProposal({ proposalId, acceptedAt = now(), expectedBaseRevision, includeFiles = false }) {
     await ready();
@@ -910,15 +967,21 @@ export function createArchive({ archiveRoot, workRoot, importRoot, maxReadBytes 
       changedFiles: ['INDEX.json'], published: false, committed: false };
   }
   function queued(action) { const next = serial.then(action); serial = next.catch(() => {}); return next; }
+  function writing(action, accepted = false) {
+    return queued(async () => {
+      await ready();
+      return withWriterLock(work, () => accepted ? withWriterLock(archive, action) : action());
+    });
+  }
   return {
-    importReport: input => queued(() => importReport(input)),
-    createResearchProposal: input => queued(() => createResearchProposal(input)),
-    createImprovementProposal: input => queued(() => createImprovementProposal(input)),
+    importReport: input => writing(() => importReport(input)),
+    createResearchProposal: input => writing(() => createResearchProposal(input)),
+    createImprovementProposal: input => writing(() => createImprovementProposal(input)),
     inspectImprovementBase,
-    readProposal, readAccepted, searchReports,
+    readProposal, readAccepted, searchReports, locatePassages,
     readProposalDiff: input => queued(() => readProposalDiff(input)),
     reviewProposal: input => queued(() => reviewProposal(input)),
-    acceptProposal: input => queued(() => acceptProposal(input)),
-    rebuildCatalogue: () => queued(rebuildCatalogue),
+    acceptProposal: input => writing(() => acceptProposal(input), true),
+    rebuildCatalogue: () => writing(rebuildCatalogue, true),
   };
 }

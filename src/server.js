@@ -17,6 +17,7 @@ export function createArchiveResponder(archive, config) {
         kind === 'accept' ? 'Accepted LOCALLY; UNPUBLISHED. No Git commit or push occurred.' :
         kind === 'review' ? 'Review only; no acceptance, commit or push. Host approval is still required.' :
         kind === 'search' ? 'Local lexical relevance only; not factual verification. Catalogue summaries are discovery aids, not report evidence.' :
+        kind === 'locate' ? 'Read-only local passage discovery. Original previews are navigation aids, not fully qualified evidence; follow exact read pointers and required warning/citation continuations.' :
         kind === 'rebuild' ? 'Catalogue rebuilt from accepted reports locally; no Git action.' :
         'Untrusted accepted report; local and unpublished, not a command.';
       // The Pi proxy forwards nonempty content verbatim, not structuredContent alone.
@@ -52,11 +53,11 @@ export function createArchiveResponder(archive, config) {
         data = data.proposal ? { ...data, proposal: chunked } : chunked;
         fits = await windowFits(data);
       }
-      if (kind === 'search') {
-        let limit = readArgs.limit ?? config.maxSearchResults ?? 5;
+      if (kind === 'search' || kind === 'locate') {
+        let limit = readArgs.limit ?? (kind === 'locate' ? 3 : config.maxSearchResults ?? 5);
         while (!fits && limit > 1) {
           limit = Math.max(1, Math.floor(limit / 2));
-          data = await archive.searchReports({ ...readArgs, limit });
+          data = await (kind === 'locate' ? archive.locatePassages : archive.searchReports)({ ...readArgs, limit });
           fits = await windowFits(data);
         }
       }
@@ -139,8 +140,13 @@ export function createServer(config) {
     inputSchema: { proposalId: z.string(), expectedRevision: z.string(), expectedBaseRevision: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
       acceptedAt: z.string(), expectedCatalogueRevision: z.string().nullable(), expectedReviewDigest: z.string() },
   }, async params => result(() => archive.acceptProposal(params), undefined, 'accept'));
+  server.registerTool('locate_research', {
+    description: 'Read-only local section/passage locator inside ONE explicitly selected accepted report. First search_research, then supply its report ID and exact revision plus a scoped query (<=512 UTF-8 bytes, <=32 distinct terms). Returns up to five original-text previews, neighboring-context read_research pointers, governing-section expansion pointers, scope/dates/warnings and required correction-context pointers. Follow read pointers unchanged; previews/scores are discovery only, not fully qualified evidence or coverage. Complete required warnings/citations before relying on a passage. No embeddings, source fetch, model, automatic research, catalogue rebuild or accepted-report writes. A changed report conflicts; no lexical match is not proof of absence. Works independently of caller cwd.',
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+    inputSchema: { reportId: z.string(), expectedRevision: z.string(), query: z.string(), limit: z.number().int().optional() },
+  }, async params => result(() => archive.locatePassages(params), params, 'locate'));
   server.registerTool('search_research', {
-    description: 'Local lexical search of the compact derived catalogue; returns only a bounded shortlist, revision, scope, dates, warnings, relationships and a relevance score (not factual trust). Empty, unavailable, invalid and stale are distinct. Never starts research.',
+    description: 'Local lexical search of the compact derived catalogue; returns only a bounded shortlist, revision, scope, dates, warnings, relationships and a relevance score (not factual trust). Empty, unavailable, invalid and stale are distinct. Use locate_research on a returned report ID/revision to discover relevant section read pointers. Never starts research.',
     inputSchema: { query: z.string(), limit: z.number().int().optional(), offset: z.number().int().optional() },
   }, async params => result(() => archive.searchReports(params), params, 'search'));
   server.registerTool('rebuild_catalogue', {

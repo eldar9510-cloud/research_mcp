@@ -13,6 +13,9 @@ credentials.json
 *.pem
 *.key
 
+# Temporary cross-process mutation lock (inspect abandoned locks; never auto-steal)
+.research-writer.lock
+
 # Runtime/build artifacts
 node_modules/
 dist/

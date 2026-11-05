@@ -29,6 +29,45 @@ Omit `selection` to obtain the complete original body. Concatenate distinct `con
 
 Invalid, reversed, out-of-body or interior-code-point ranges are `invalid_input`. A stale revision is `revision_conflict`, not a successful page at the new revision. Accepted conflicts disclose requested/current digests before catalogue staleness can obscure the change. Removed requested reports/proposals also conflict. Restart discovery/read against the new revision; never combine old continuations with new evidence. There is no historical revision database or automatic Git checkout.
 
+## Locate relevant passages before reading
+
+The owner-approved Shape improvement (2026-11-05) adds the shared MCP tool
+`locate_research({reportId, expectedRevision, query, limit?})`. First discover a
+report through `search_research`; use that returned ID/revision. The query is
+bounded to 512 UTF-8 bytes and 32 distinct Unicode word terms. `limit` defaults
+to three and accepts one through five.
+
+The locator ranks original Markdown blocks within **that one report** using
+local exact-term matches (body weight four, inherited heading weight two).
+Paragraphs, contiguous tables/lists and fenced code are located structurally;
+there is no model, embedding, persistent passage index or archive-wide body scan.
+It cannot recover a report missing from the first shortlist, translate a query,
+judge applicability or certify coverage.
+
+Results carry full report metadata/dates and warnings, required correction-context
+pointers, bounded verbatim `preview` ranges, `match` ranges, and:
+
+- `read`: an exact same-revision `read_research` selection including the matching
+  block and neighboring blocks in its section. Pass this object unchanged.
+- `sectionRead`: a same-revision selection for the governing heading section,
+  including its subsections, when the initial selection is insufficient.
+- `matchedBlocks` / `omittedMatches`: explicitly disclose matches not returned,
+  including redundant matches already covered by another result's context.
+
+Headings and previews disclose truncation; they are navigation aids, **not fully
+qualified evidence**. Read all required warning/correction and citation
+continuations using the existing contract below. Empty means no lexical match
+inside this selected report, not proof that the archive lacks an answer. A changed
+report is `revision_conflict`, never silently relocated evidence. Complete visible
+results retain the existing 48 KiB cap; optional results may be reduced before an
+irreducible `limit_reached`, never by dropping warnings.
+
+The same tool works from unrelated project working directories: configure the
+shared archive once per client environment; no caller-side report paths, engine
+clone or project-specific retrieval script is required. Express relevant project
+constraints in the query and assess report scope before reuse. Sharing research
+never shares conversation state or another session's approvals.
+
 ## Warnings and exact context
 
 Every page retains identity, exact revision/source digest, complete metadata (scope, original/improvement/import/archive dates, relationships and successor), all stored diagnostic warnings, all metadata warning strings, and selected location. The 24 KiB record/header cap and 40 stored diagnostic cap are unchanged. Metadata warning validation uses the same supported string schema in the catalogue as at import; valid Unicode is not cut to 512 UTF-8 bytes. Stored metadata/body bytes and digests are never normalized or rewritten by reading/search.

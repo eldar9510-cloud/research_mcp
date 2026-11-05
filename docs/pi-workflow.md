@@ -99,6 +99,24 @@ scope, original/improvement/import dates (including unknowns), correction text,
 successors, citations and imported warnings in its answer. An archive-update or
 import date is not a verification date.
 
+## Optional shared passage discovery
+
+After shortlist discovery, ordinary MCP `locate_research` accepts one returned
+`reportId`, its exact `expectedRevision`, a short scoped `query` and optional
+`limit` (one to five, default three). It returns original previews and exact
+`read` / `sectionRead` selections, not evidence qualification. See
+[reading.md](reading.md#locate-relevant-passages-before-reading).
+
+This is a shared MCP capability, not another `research_coverage` action or a
+project-specific indexer. In the pinned coverage workflow, pass the returned
+`read` object unchanged inside `research_coverage({action:"read",read:...})` for
+a previously shortlisted ID/revision. Existing read/selection/page limits and
+all warning/citation requirements still apply. The locator neither resolves a
+coverage lookup error nor permits new research. Global-client tool allowlisting
+and startup belong to that environment's separate configuration; this addition
+does not establish compatibility of the full pinned host gates with other Pi
+versions.
+
 ## Optional existing Jev, never a dependency
 
 Only an ambiguous bounded local shortlist is eligible. `rerank` constructs text
